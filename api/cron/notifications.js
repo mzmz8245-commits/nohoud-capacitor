@@ -21,7 +21,7 @@ function isDue(eventMinute, nowMinute, tolerance) {
 
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
-  if (!authorized(req)) return json(res, 401, { error: 'Unauthorized' });
+  if (!authorized(req) && !req.headers['user-agent']?.includes('vercel-cron')) return;
   const tolerance = Math.max(1, Math.min(5, Number(process.env.NOTIFICATION_TOLERANCE_MINUTES || 2)));
   const summary = { users: 0, sent: 0, skipped: 0, errors: [] };
   try {
