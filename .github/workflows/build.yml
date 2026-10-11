@@ -23,32 +23,34 @@ jobs:
         run: |
           npm install
 
-      - name: Install Capacitor CLI Globally & Locally
+      - name: Ensure Capacitor Config Exists
         run: |
-          npm install -D @capacitor/cli @capacitor/core @capacitor/ios
+          if [ ! -f "capacitor.config.json" ] && [ ! -f "capacitor.config.ts" ]; then
+            echo '{ "appId": "com.nohoud.app", "appName": "nohoud", "webDir": "dist" }' > capacitor.config.json
+          fi
 
       - name: Build Web Assets
         run: |
           mkdir -p dist
           cp -R * dist/ 2>/dev/null || true
-          rm -rf dist/.git dist/.github dist/workflow dist/ios dist/android
+          rm -rf dist/.git dist/.github dist/ios dist/android
 
-      - name: Add iOS Platform Cleanly
+      - name: Add and Sync iOS Platform
         run: |
-          npx cap rm ios || true
+          rm -rf ios
           npx cap add ios
           npx cap sync ios
 
-      - name: Verify Workspace Exists
+      - name: Find Workspace and Build (.app)
         run: |
-          if [ ! -d "ios/App/App.xcworkspace" ]; then
-            echo "Error: ios/App/App.xcworkspace still missing!"
+          WORKSPACE=$(find ios -name "*.xcworkspace" | head -n 1)
+          if [ -z "$WORKSPACE" ]; then
+            echo "Error: Could not find any xcworkspace in ios/ folder!"
             exit 1
           fi
-
-      - name: Build iOS App (.app)
-        run: |
-          xcodebuild -workspace ios/App/App.xcworkspace \
+          echo "Building workspace at: $WORKSPACE"
+          
+          xcodebuild -workspace "$WORKSPACE" \
                      -scheme App \
                      -configuration Release \
                      -sdk iphonesimulator \
