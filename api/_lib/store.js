@@ -1,18 +1,27 @@
-const url = process.env.KV_REST_API_URL;
-const token = process.env.KV_REST_API_TOKEN;
+const redisUrl = process.env.REDIS_URL;
 
-function assertConfigured() {
-  if (!url || !token) throw new Error('KV_REST_API_URL and KV_REST_API_TOKEN are required');
+function parseRedisUrl(urlStr) {
+  if (!urlStr) throw new Error('REDIS_URL is required');
+  const parsed = new URL(urlStr);
+  const host = parsed.hostname;
+  const port = parsed.port || '6379';
+  const password = parsed.password || parsed.username;
+  const useTls = parsed.protocol === 'rediss:';
+  const restUrl = `${useTls ? 'https' : 'http'}://${host}:${port}`;
+  return { restUrl, password };
 }
 
 async function command(...parts) {
-  assertConfigured();
-  const response = await fetch(url, {
+  const { restUrl, password } = parseRedisUrl(redisUrl);
+  const response = await fetch(restUrl, {
     method: 'POST',
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    headers: {
+      ...(password ? { authorization: `Bearer ${password}` } : {}),
+      'content-type': 'application/json',
+    },
     body: JSON.stringify(parts),
   });
-  if (!response.ok) throw new Error(`KV request failed (${response.status})`);
+  if (!response.ok) throw new Error(`Redis request failed (${response.status})`);
   const payload = await response.json();
   return payload.result;
 }
