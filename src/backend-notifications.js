@@ -16,21 +16,26 @@ async function initOneSignal() {
 }
 
 export async function syncNohoudBackendSubscription({ location, enabled = true, method = 3, sunnah, hourly = true, hourlyIntervalMinutes = 60, witrMode = 'lastThird' }) {
-  if (!location || !Number.isFinite(Number(location.latitude)) || !Number.isFinite(Number(location.longitude))) return { ok: false, skipped: true };
   await initOneSignal();
   let playerId = '';
   try {
     const OneSignal = window.OneSignal;
     playerId = OneSignal?.User?.PushSubscription?.id || '';
   } catch (_) {}
+  
   if (!playerId) return { ok: false, skipped: true, reason: 'OneSignal subscription is not ready' };
+
+  // استخدام إحداثيات افتراضية لجدة في حال لم يتم تحديد الموقع لتفادي تخطي التسجيل
+  const lat = (location && Number.isFinite(Number(location.latitude))) ? Number(location.latitude) : 21.5433;
+  const lng = (location && Number.isFinite(Number(location.longitude))) ? Number(location.longitude) : 39.1728;
+
   const response = await fetch('/api/subscribe', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       playerId,
-      latitude: Number(location.latitude),
-      longitude: Number(location.longitude),
+      latitude: lat,
+      longitude: lng,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
       enabled,
       method,
