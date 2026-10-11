@@ -27,12 +27,14 @@ jobs:
         run: |
           mkdir -p dist
           cp -R * dist/ 2>/dev/null || true
-          # إزالة مجلد الكود والـ git من الداخل لتجنب التداخل
           rm -rf dist/.git dist/.github dist/ios dist/android
 
-      - name: Add & Sync iOS
+      - name: Force Add iOS Platform
         run: |
-          npx cap add ios || true
+          npx cap add ios
+
+      - name: Sync iOS Project
+        run: |
           npx cap sync ios
 
       - name: Build iOS App (.app)
