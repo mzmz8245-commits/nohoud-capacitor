@@ -1,0 +1,8 @@
+{
+  "appId": "app.nohoud.mobile",
+  "appName": "نُهوض",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "automatic"
+  }
+}
