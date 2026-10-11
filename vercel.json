@@ -1,6 +1,8 @@
 {
-  "cleanUrls": true,
-  "framework": null,
-  "buildCommand": null,
-  "outputDirectory": "."
+  "crons": [
+    {
+      "path": "/api/cron/notifications",
+      "schedule": "* * * * *"
+    }
+  ]
 }

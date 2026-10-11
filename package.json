@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "echo 'no build required'",
+    "build": "vite build",
     "ios:add": "npx cap add ios",
     "ios:sync": "npm run build && npx cap sync ios",
     "ios:open": "npx cap open ios"

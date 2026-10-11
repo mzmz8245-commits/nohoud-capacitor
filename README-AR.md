@@ -83,3 +83,34 @@
 - [Adhan JS](https://github.com/batoulapps/adhan-js)
 
 > الحسابات تعتمد توقيت الجهاز المحلي؛ فعّل **الإعداد التلقائي للتاريخ والوقت والمنطقة الزمنية** في iPhone، وجدّد الموقع يدوياً بعد الانتقال إلى مدينة أخرى. يبقى `appId` ثابتاً حتى لا يفقد التطبيق تخزينه المحلي عند تحديثه.
+
+
+## الإشعارات السحابية عبر Vercel وOneSignal
+
+يحتوي المشروع الآن على Backend اختياري داخل `api/`:
+
+- `api/subscribe.js`: يحفظ `OneSignal Player ID` والإحداثيات والمنطقة الزمنية وإعدادات السنن.
+- `api/cron/notifications.js`: يفحص المواعيد كل دقيقة، ويحسب الفروض والشروق والضحى والوتر، ثم يرسل عبر OneSignal.
+- `api/_lib/ai.js`: يدعم OpenAI أو Gemini لتوليد نص متجدد. عند فشل الذكاء الاصطناعي يستخدم رسائل احتياطية قصيرة.
+- `vercel.json`: يعرّف مهمة Cron على المسار `/api/cron/notifications`.
+- `.env.example`: قائمة المتغيرات المطلوبة.
+
+### إعداد Vercel
+
+1. أنشئ تطبيقاً في OneSignal وخذ `App ID` و`REST API Key`.
+2. أنشئ قاعدة Upstash Redis من Vercel Marketplace، ثم انسخ `KV_REST_API_URL` و`KV_REST_API_TOKEN`.
+3. في Vercel افتح **Project Settings → Environment Variables** وأضف المتغيرات الموجودة في `.env.example`:
+   - `ONESIGNAL_APP_ID`
+   - `ONESIGNAL_REST_API_KEY`
+   - `KV_REST_API_URL`
+   - `KV_REST_API_TOKEN`
+   - `OPENAI_API_KEY` أو `GEMINI_API_KEY`
+   - `AI_PROVIDER` بقيمة `openai` أو `gemini`
+   - `CRON_SECRET`
+4. عدّل قيمة `window.NOHOUD_ONESIGNAL_APP_ID` في `index.html` إلى OneSignal App ID العام. هذا المعرّف ليس مفتاحاً سرياً.
+5. ارفع المشروع إلى GitHub ثم اربطه بمشروع Vercel، أو ارفع مجلد المشروع مباشرة إلى GitHub وبعدها استورد المستودع في Vercel.
+6. افتح التطبيق، فعّل الإشعارات والموقع، وسيُرسل التطبيق الإحداثيات والاشتراك إلى `/api/subscribe`.
+
+> تحتاج Vercel Cron التي تعمل كل دقيقة إلى الخطة التي تسمح بهذا التكرار. إذا كانت الخطة لا تسمح بالدقيقة، غيّر الجدول إلى `*/5 * * * *` وزد `NOTIFICATION_TOLERANCE_MINUTES` إلى `5`.
+
+> لا يطلب مولد الذكاء الاصطناعي اختلاق أحاديث أو آيات. الرسائل العامة تُولّد بأسلوب متجدد، أما النصوص المنسوبة للمصادر فيجب إضافتها من مصدر موثوق ومراجعته قبل النشر.
