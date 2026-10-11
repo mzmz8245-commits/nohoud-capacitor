@@ -15,7 +15,8 @@
     "@capacitor/geolocation": "8.2.3",
     "@capacitor/ios": "8.5.3",
     "@capacitor/local-notifications": "8.3.1",
-    "adhan": "4.4.6"
+    "adhan": "4.4.6",
+    "ioredis": "^5.3.2"
   },
   "devDependencies": {
     "@capacitor/cli": "8.5.3",
