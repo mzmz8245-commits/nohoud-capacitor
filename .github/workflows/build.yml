@@ -23,10 +23,12 @@ jobs:
         run: |
           npm install --save @capacitor/core @capacitor/cli @capacitor/ios
 
-      - name: Prepare Web Assets Directory
+      - name: Prepare Web Assets Directory (dist)
         run: |
-          mkdir -p www
-          cp -R * www/ 2>/dev/null || true
+          mkdir -p dist
+          cp -R * dist/ 2>/dev/null || true
+          # إزالة مجلد الكود والـ git من الداخل لتجنب التداخل
+          rm -rf dist/.git dist/.github dist/ios dist/android
 
       - name: Add & Sync iOS
         run: |
