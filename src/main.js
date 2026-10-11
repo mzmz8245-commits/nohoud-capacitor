@@ -22,7 +22,6 @@ const calculationMethods = {
   '4': CalculationMethod.UmmAlQura,
   '5': CalculationMethod.Egyptian,
   '8': CalculationMethod.Dubai,
-  // رمز AlAdhan لفرنسا UOIF؛ أقرب preset عام مضمّن هنا هو MWL.
   '12': CalculationMethod.Other,
   '13': CalculationMethod.Turkey,
 };
@@ -61,3 +60,32 @@ window.NohoudPrayerCalculator = {
     };
   },
 };
+
+// دالة تلقائية لربط الجهاز بالخادم وحفظ الـ Player ID والإحداثيات فوراً
+async function autoSyncBackend() {
+  try {
+    const perm = await Geolocation.requestPermissions();
+    if (perm && perm.location === 'granted') {
+      const pos = await Geolocation.getCurrentPosition();
+      const location = {
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+      };
+
+      const result = await syncNohoudBackendSubscription({
+        location,
+        enabled: true,
+        method: 3,
+        hourly: true,
+      });
+      console.log('تمت مزامنة بيانات الإشعارات بنجاح مع السيرفر:', result);
+    }
+  } catch (e) {
+    console.error('خطأ في المزامنة التلقائية مع الخلفية:', e);
+  }
+}
+
+// تنفيذ المزامنة تلقائياً عند فتح التطبيق
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(autoSyncBackend, 3000);
+});
