@@ -4,6 +4,15 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <title>نُهوض | Nohoud Super App</title>
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script>
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async function(OneSignal) {
+    await OneSignal.init({
+      appId: "099e5837-0ef6-409f-ab84-1b5d24094a88",
+    });
+  });
+</script>
 <!-- PWA Meta Tags -->
 <meta content="#10b981" name="theme-color"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
