@@ -19,21 +19,32 @@ jobs:
         with:
           node-version: 23
 
-      - name: Install Capacitor CLI & Dependencies
+      - name: Install Dependencies
         run: |
-          npm install --save @capacitor/core @capacitor/cli @capacitor/ios @capacitor/geolocation @capacitor/local-notifications
+          npm install
 
-      - name: Prepare Web Assets Directory (dist)
+      - name: Install Capacitor CLI Globally & Locally
+        run: |
+          npm install -D @capacitor/cli @capacitor/core @capacitor/ios
+
+      - name: Build Web Assets
         run: |
           mkdir -p dist
           cp -R * dist/ 2>/dev/null || true
-          rm -rf dist/.git dist/.github dist/ios dist/android
+          rm -rf dist/.git dist/.github dist/workflow dist/ios dist/android
 
-      - name: Create and sync iOS
+      - name: Add iOS Platform Cleanly
         run: |
-          rm -rf ios
+          npx cap rm ios || true
           npx cap add ios
           npx cap sync ios
+
+      - name: Verify Workspace Exists
+        run: |
+          if [ ! -d "ios/App/App.xcworkspace" ]; then
+            echo "Error: ios/App/App.xcworkspace still missing!"
+            exit 1
+          fi
 
       - name: Build iOS App (.app)
         run: |
