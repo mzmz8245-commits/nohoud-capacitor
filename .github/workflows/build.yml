@@ -6,6 +6,10 @@ on:
     branches:
       - main
 
+env:
+  APP_SCHEME: App
+  APP_WORKSPACE: ios/App/App.xcworkspace
+
 jobs:
   build:
     runs-on: macos-latest
@@ -29,23 +33,27 @@ jobs:
           cp -R * dist/ 2>/dev/null || true
           rm -rf dist/.git dist/.github dist/ios dist/android
 
-      - name: Force Add & Sync iOS
+      - name: Create and sync the native iOS project
         run: |
-          npx cap add ios || true
+          # تنظيف أي مجلد قديم
+          rm -rf ios
+
+          # توليد ومزامنة مشروع iOS
+          npx cap add ios
           npx cap sync ios
 
-      - name: Find Workspace and Build iOS App (.app)
+          # التحقق من وجود وملفات مشروع Xcode
+          test -d ios/App/App.xcworkspace
+          test -f ios/App/App.xcworkspace/contents.xcworkspacedata
+          test -f ios/App/App.xcodeproj/project.pbxproj
+
+          echo "Generated native project:"
+          ls -la ios/App
+
+      - name: Build iOS App (.app)
         run: |
-          # البحث التلقائي عن ملف الـ workspace وبناءه مباشرة
-          WORKSPACE_PATH=$(find . -name "App.xcworkspace" -type d | head -n 1)
-          if [ -z "$WORKSPACE_PATH" ]; then
-            echo "Error: App.xcworkspace not found!"
-            exit 1
-          fi
-          echo "Found workspace at: $WORKSPACE_PATH"
-          
-          xcodebuild -workspace "$WORKSPACE_PATH" \
-                     -scheme App \
+          xcodebuild -workspace "$APP_WORKSPACE" \
+                     -scheme "$APP_SCHEME" \
                      -configuration Release \
                      -sdk iphonesimulator \
                      -derivedDataPath build
