@@ -29,17 +29,22 @@ jobs:
           cp -R * dist/ 2>/dev/null || true
           rm -rf dist/.git dist/.github dist/ios dist/android
 
-      - name: Force Add iOS Platform
+      - name: Force Add & Sync iOS
         run: |
-          npx cap add ios
-
-      - name: Sync iOS Project
-        run: |
+          npx cap add ios || true
           npx cap sync ios
 
-      - name: Build iOS App (.app)
+      - name: Find Workspace and Build iOS App (.app)
         run: |
-          xcodebuild -workspace ios/App/App.xcworkspace \
+          # البحث التلقائي عن ملف الـ workspace وبناءه مباشرة
+          WORKSPACE_PATH=$(find . -name "App.xcworkspace" -type d | head -n 1)
+          if [ -z "$WORKSPACE_PATH" ]; then
+            echo "Error: App.xcworkspace not found!"
+            exit 1
+          fi
+          echo "Found workspace at: $WORKSPACE_PATH"
+          
+          xcodebuild -workspace "$WORKSPACE_PATH" \
                      -scheme App \
                      -configuration Release \
                      -sdk iphonesimulator \
