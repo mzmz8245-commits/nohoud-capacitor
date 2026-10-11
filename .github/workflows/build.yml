@@ -6,10 +6,6 @@ on:
     branches:
       - main
 
-env:
-  APP_SCHEME: App
-  APP_WORKSPACE: ios/App/App.xcworkspace
-
 jobs:
   build:
     runs-on: macos-latest
@@ -25,7 +21,7 @@ jobs:
 
       - name: Install Capacitor CLI & Dependencies
         run: |
-          npm install --save @capacitor/core @capacitor/cli @capacitor/ios
+          npm install --save @capacitor/core @capacitor/cli @capacitor/ios @capacitor/geolocation @capacitor/local-notifications
 
       - name: Prepare Web Assets Directory (dist)
         run: |
@@ -33,30 +29,20 @@ jobs:
           cp -R * dist/ 2>/dev/null || true
           rm -rf dist/.git dist/.github dist/ios dist/android
 
-      - name: Create and sync the native iOS project
+      - name: Create and sync iOS
         run: |
-          # تنظيف أي مجلد قديم
           rm -rf ios
-
-          # توليد ومزامنة مشروع iOS
           npx cap add ios
           npx cap sync ios
 
-          # التحقق من وجود وملفات مشروع Xcode
-          test -d ios/App/App.xcworkspace
-          test -f ios/App/App.xcworkspace/contents.xcworkspacedata
-          test -f ios/App/App.xcodeproj/project.pbxproj
-
-          echo "Generated native project:"
-          ls -la ios/App
-
       - name: Build iOS App (.app)
         run: |
-          xcodebuild -workspace "$APP_WORKSPACE" \
-                     -scheme "$APP_SCHEME" \
+          xcodebuild -workspace ios/App/App.xcworkspace \
+                     -scheme App \
                      -configuration Release \
                      -sdk iphonesimulator \
-                     -derivedDataPath build
+                     -derivedDataPath build \
+                     CODE_SIGNING_ALLOWED=NO
 
       - name: Zip iOS Simulator App
         run: |
