@@ -19,17 +19,19 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install Dependencies
-        run: npm ci
+      - name: Install Capacitor CLI & Dependencies
+        run: |
+          npm install --save @capacitor/core @capacitor/cli @capacitor/ios
 
-      - name: Build Web Assets
-        run: npm run build
+      - name: Prepare Web Assets Directory
+        run: |
+          mkdir -p www
+          cp -R * www/ 2>/dev/null || true
 
-      - name: Add iOS Platform
-        run: npx cap add ios
-
-      - name: Sync iOS Project
-        run: npx cap sync ios
+      - name: Add & Sync iOS
+        run: |
+          npx cap add ios || true
+          npx cap sync ios
 
       - name: Build iOS App (.app)
         run: |
