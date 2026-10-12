@@ -11,15 +11,17 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'استخدم POST فقط' });
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
-    const playerId = String(body.playerId || body.onesignalPlayerId || '').trim();
+    const playerId = String(body.subscriptionId || body.playerId || body.onesignalPlayerId || '').trim();
     const latitude = validNumber(body.latitude ?? body.location?.latitude, -90, 90);
     const longitude = validNumber(body.longitude ?? body.location?.longitude, -180, 180);
-    if (!playerId || playerId.length > 200) return json(res, 400, { error: 'playerId مطلوب' });
+    if (!playerId || playerId.length > 200) return json(res, 400, { error: 'OneSignal subscriptionId مطلوب' });
     if (latitude == null || longitude == null) return json(res, 400, { error: 'إحداثيات صحيحة مطلوبة' });
     const timezone = String(body.timezone || 'UTC');
     new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format();
     const user = {
       playerId,
+      subscriptionId: playerId,
+      platform: body.platform === 'ios' ? 'ios' : 'web',
       location: { latitude, longitude },
       timezone,
       method: Number(body.method || 3),

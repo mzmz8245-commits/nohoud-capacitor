@@ -18,7 +18,7 @@
 <!-- Tailwind CSS & Lucide Icons -->
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
-<script>window.NOHOUD_ONESIGNAL_APP_ID=window.NOHOUD_ONESIGNAL_APP_ID||'099e5837-0ef6-409f-ab84-1b5d24094a88';</script>
+<script>window.NOHOUD_ONESIGNAL_APP_ID=window.NOHOUD_ONESIGNAL_APP_ID||'';</script>
 <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -71,7 +71,7 @@
     let nohoudNativeSchedulePromise=null;
     function nohoudIsNativeApp(){return !!(window.NohoudCapacitor?.isNativePlatform?.()&&window.NohoudLocalNotifications)}
     function nohoudNativeLocalNotifications(){return nohoudIsNativeApp()?window.NohoudLocalNotifications:null}
-    async function nohoudRequestNotificationsPermission(){const plugin=nohoudNativeLocalNotifications();if(plugin){let permission=await plugin.checkPermissions();if(permission.display!=='granted')permission=await plugin.requestPermissions();return permission.display==='granted'}if(!('Notification'in window)||typeof Notification.requestPermission!=='function')return false;let permission=Notification.permission;if(permission==='default')permission=await Notification.requestPermission();return permission==='granted'}
+    async function nohoudRequestNotificationsPermission(){if(nohoudIsNativeApp()&&window.NohoudRequestNativePushPermission){const granted=await window.NohoudRequestNativePushPermission();if(!granted)return false}const plugin=nohoudNativeLocalNotifications();if(plugin){let permission=await plugin.checkPermissions();if(permission.display!=='granted')permission=await plugin.requestPermissions();return permission.display==='granted'}if(!('Notification'in window)||typeof Notification.requestPermission!=='function')return false;let permission=Notification.permission;if(permission==='default')permission=await Notification.requestPermission();return permission==='granted'}
     function nohoudPushPreferences(){const saved=(()=>{try{return JSON.parse(localStorage.getItem(NOHOUD_PUSH_PREFS_KEY)||'{}')}catch(_){return {}}})();const result={};for(const key of Object.keys(NOHOUD_PUSH_DEFAULTS)){result[key]={enabled:document.getElementById(`push-${key}-enabled`)?.checked??saved[key]?.enabled??NOHOUD_PUSH_DEFAULTS[key].enabled,time:document.getElementById(`push-${key}-time`)?.value||saved[key]?.time||NOHOUD_PUSH_DEFAULTS[key].time}}return result}
     function applyNohoudPushPreferences(){let saved={};try{saved=JSON.parse(localStorage.getItem(NOHOUD_PUSH_PREFS_KEY)||'{}')}catch(_){}for(const [key,defaults] of Object.entries(NOHOUD_PUSH_DEFAULTS)){const enabled=document.getElementById(`push-${key}-enabled`),time=document.getElementById(`push-${key}-time`);if(enabled)enabled.checked=saved[key]?.enabled??defaults.enabled;if(time)time.value=saved[key]?.time||defaults.time}}
     function nohoudPushStatus(text,isError=false){const el=document.getElementById('nohoud-push-status');if(el){el.textContent=text;el.className=`min-h-6 text-[11px] leading-relaxed mt-3 ${isError?'text-rose-300':'text-slate-300'}`}}

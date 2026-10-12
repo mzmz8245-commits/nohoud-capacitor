@@ -114,3 +114,18 @@
 > تحتاج Vercel Cron التي تعمل كل دقيقة إلى الخطة التي تسمح بهذا التكرار. إذا كانت الخطة لا تسمح بالدقيقة، غيّر الجدول إلى `*/5 * * * *` وزد `NOTIFICATION_TOLERANCE_MINUTES` إلى `5`.
 
 > لا يطلب مولد الذكاء الاصطناعي اختلاق أحاديث أو آيات. الرسائل العامة تُولّد بأسلوب متجدد، أما النصوص المنسوبة للمصادر فيجب إضافتها من مصدر موثوق ومراجعته قبل النشر.
+
+
+## إصلاح الإشعارات عند إغلاق تطبيق iOS
+
+نسخة Capacitor لا تستخدم OneSignal Web SDK داخل iOS الأصلي. يجب أن يستخدم التطبيق `@onesignal/capacitor-plugin`، وأن يُسجَّل **Subscription ID** الناتج من الاشتراك الأصلي، وليس Web Player ID. أضيفت الإضافة إلى `package.json`، ويهيّئها `src/main.js` عند تشغيل التطبيق الأصلي.
+
+قبل اختبار الإشعار على iPhone فعلي، من لوحة OneSignal افتح **Settings → Push & In-App → Apple iOS (APNs)** وأضف APNs Auth Key بصيغة `.p8` مع Key ID وTeam ID وBundle ID. يجب أن يطابق Bundle ID القيمة `app.nohoud.mobile`.
+
+في Xcode أو في إعداد Workflow يجب أن يكون Target App مفعلاً له **Push Notifications** و**Background Modes → Remote notifications**، وأن يحتوي ملف التوقيع على `aps-environment`. يضيف Workflow هذه الإعدادات إلى البناء، لكن ملف Provisioning Profile يجب أن يكون منشأً بعد تفعيل Push Notifications في Apple Developer.
+
+اختبر أولاً من لوحة OneSignal بإرسال رسالة إلى الاشتراك الظاهر في **Audience → Users & subscriptions → Subscriptions**. يجب أن تكون حالته **Subscribed** وأن يكون نوع القناة iOS Mobile، وليس Web. إذا لم يظهر اشتراك iOS، فهذا يعني أن التطبيق المثبت بُني قبل إضافة الإضافة أو أن إذن الإشعارات لم يُمنح؛ احذف التطبيق وأعد تثبيت أحدث بناء على iPhone.
+
+تم تحديث Vercel API ليستخدم `POST https://api.onesignal.com/notifications` و`include_subscription_ids`. أما Vercel Cron فيولّد محتوى الرسالة ويطلب الإرسال فقط؛ لا يستطيع جعل APNs يعمل إذا لم يكن اشتراك iOS أو APNs مهيأً بشكل صحيح.
+
+> لا يمكن اختبار إشعارات APNs الأصلية على ملف `iOS Simulator .app` السابق. استخدم iPhone فعلياً مع توقيع Apple، أو استخدم محاكي iOS حديثاً مهيأً لاختبار Push. إغلاق التطبيق بالقوة قد يؤثر في بعض مهام الخلفية المحلية، لكن Push عن بُعد عبر APNs يجب أن يصل عندما يكون التطبيق مغلقاً إذا كان الاشتراك APNs صالحاً.
