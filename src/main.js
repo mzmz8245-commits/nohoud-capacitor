@@ -8,7 +8,6 @@ import {
   Madhab,
   PrayerTimes,
 } from 'adhan';
-import { syncNohoudBackendSubscription } from './backend-notifications.js';
 import OneSignal from '@onesignal/capacitor-plugin';
 
 // تأكيد تشغيل الحزمة بنجاح لإعلام Capgo بمنع التراجع (Rollback)
@@ -18,7 +17,6 @@ CapacitorUpdater.notifyAppReady();
 window.NohoudCapacitor = Capacitor;
 window.NohoudLocalNotifications = LocalNotifications;
 window.NohoudGeolocation = Geolocation;
-window.NohoudSyncBackendSubscription = syncNohoudBackendSubscription;
 window.NohoudOneSignalNative = OneSignal;
 
 const nohoudOneSignalAppId = window.NOHOUD_ONESIGNAL_APP_ID || '';
