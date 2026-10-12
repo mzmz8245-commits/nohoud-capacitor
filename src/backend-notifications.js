@@ -27,9 +27,19 @@ async function getNativeSubscriptionId() {
 }
 
 export async function requestNohoudNativePushPermission() {
+  // محاولة الطلب عبر OneSignal Native إن وجد
   const native = window.NohoudOneSignalNative;
-  if (!native?.Notifications?.requestPermission) return false;
-  return native.Notifications.requestPermission(true);
+  if (native?.Notifications?.requestPermission) {
+    return native.Notifications.requestPermission(true);
+  }
+  
+  // طريقة بديلة مباشرة للويب/الآيفون لتجاوز خطأ عدم الدعم
+  if ('Notification' in window) {
+    const permission = await Notification.requestPermission();
+    return permission === 'granted';
+  }
+  
+  return false;
 }
 
 export async function syncNohoudBackendSubscription({ location, enabled = true, method = 3, sunnah, hourly = true, hourlyIntervalMinutes = 60, witrMode = 'lastThird' }) {
@@ -37,7 +47,7 @@ export async function syncNohoudBackendSubscription({ location, enabled = true, 
     return { ok: false, skipped: true, reason: 'location is required' };
   }
   let subscriptionId = '';
-  const isNative = Boolean(window.NohoudCapacitor?.isNativePlatform?.());
+  const isNative = Boolean(window.NohoudCapacitor?.isNativePlatform?.() || window.NohoudOneSignalNative);
   if (isNative) {
     subscriptionId = await getNativeSubscriptionId();
   } else {
