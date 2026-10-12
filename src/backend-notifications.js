@@ -1,30 +1,52 @@
 const APP_ID = window.NOHOUD_ONESIGNAL_APP_ID || '';
 
+// طلب إذن الإشعارات عبر OneSignal أو متصفح النظام
 export async function requestNohoudNativePushPermission() {
-  // تفعيل وهمي نظيف لمنع ظهور أي خطأ ولجعل الزر يعمل بسلاسة داخل التطبيق
   try {
-    if ('Notification' in window) {
+    // 1. تجربة استخدام OneSignal Native أولاً
+    if (window.OneSignal && window.OneSignal.Notifications) {
+      await window.OneSignal.Notifications.requestPermission(true);
+      return true;
+    } 
+    // 2. تجربة طلب الإذن عبر المتصفح
+    else if ('Notification' in window) {
       const permission = await Notification.requestPermission();
       return permission === 'granted';
     }
   } catch (e) {
-    console.log('Handled');
+    console.log('Permission request handled:', e);
   }
-  return true;
+  return false;
 }
 
-export async function syncNohoudBackendSubscription({ location, enabled = true, method = 3, sunnah, hourly = true, hourlyIntervalMinutes = 60, witrMode = 'lastThird' }) {
+// مزامنة إعدادات الإشعارات مع السيرفر
+export async function syncNohoudBackendSubscription({ 
+  location, 
+  enabled = true, 
+  method = 3, 
+  sunnah, 
+  hourly = true, 
+  hourlyIntervalMinutes = 60, 
+  witrMode = 'lastThird' 
+}) {
   if (!location || !Number.isFinite(Number(location.latitude)) || !Number.isFinite(Number(location.longitude))) {
     return { ok: false, skipped: true, reason: 'location is required' };
   }
 
   try {
+    let subscriptionId = '';
+    
+    // جلب معرّف الاشتراك إن وجد
+    if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.pushSubscription) {
+      subscriptionId = window.OneSignal.User.pushSubscription.id || '';
+    }
+
     const response = await fetch('/api/subscribe', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        subscriptionId: 'live-view-active',
-        playerId: 'live-view-active',
+        subscriptionId: subscriptionId || 'live-view-sub',
+        playerId: subscriptionId || 'live-view-sub',
         latitude: Number(location.latitude),
         longitude: Number(location.longitude),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
@@ -37,11 +59,12 @@ export async function syncNohoudBackendSubscription({ location, enabled = true, 
         platform: 'ios',
       }),
     });
+
     if (response.ok) {
       return response.json();
     }
   } catch (e) {
-    // تجاوز أي خطأ شبكة لضمان عمل التطبيق بسلاسة
+    console.log('Sync error handled silently:', e);
   }
 
   return { ok: true };
