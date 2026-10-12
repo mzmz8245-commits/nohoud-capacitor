@@ -155,22 +155,7 @@
       }
     }
 
-    function openNohoudPushSettings(){
-      const modal = document.getElementById('nohoud-push-modal');
-      if (modal) {
-        modal.classList.remove('hidden');
-      }
-      if (window.lucide) {
-        lucide.createIcons();
-      }
-    }
-
-    function closeNohoudPushSettings(){
-      const modal = document.getElementById('nohoud-push-modal');
-      if (modal) {
-        modal.classList.add('hidden');
-      }
-    }
+    
 
        nohoudPushStatus('تم حفظ المواعيد وجدولة 28 إشعاراً بنجاح.');
        showToast('حُفظت المواعيد', 'تمت جدولة التذكيرات الجديدة.');
