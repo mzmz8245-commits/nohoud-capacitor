@@ -74,3 +74,79 @@ window.NohoudPrayerCalculator = {
     };
   },
 };
+
+// ==========================================
+// نظام إدارة وتحديث الأذكار والإشعارات الذكية
+// ==========================================
+
+const fallbackDhikrList = [
+  "سبحان الله وبحمده، سبحان الله العظيم.",
+  "لا حول ولا قوة إلا بالله العلي العظيم.",
+  "استغفر الله العظيم واتوب اليه.",
+  "اللهم صل وسلم على نبينا محمد.",
+  "لا إله إلا أنت سبحانك إني كنت من الظالمين.",
+  "سبحان الله، والحمد لله، ولا إله إلا الله، والله أكبر.",
+  "رضيت بالله رباً، وبالإسلام ديناً، وبمحمد صلى الله عليه وسلم نبيناً."
+];
+
+function getRandomFallbackDhikr() {
+  const index = Math.floor(Math.random() * fallbackDhikrList.length);
+  return fallbackDhikrList[index];
+}
+
+async function fetchDynamicDhikrText(geminiApiKey) {
+  if (!geminiApiKey) return getRandomFallbackDhikr();
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: "أعطني ذكراً قصيراً ومؤثراً جداً (جملة واحدة فقط بدون أي مقدمات أو شرح)" }]
+        }]
+      })
+    });
+    
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    return text ? text.trim() : getRandomFallbackDhikr();
+  } catch (err) {
+    console.warn('تعذر الاتصال بـ Gemini، تم استخدام الذكر الاحتياطي:', err);
+    return getRandomFallbackDhikr();
+  }
+}
+
+window.NohoudNotificationManager = {
+  async scheduleOrUpdateNotification(hour, minute, geminiApiKey) {
+    const messageText = await fetchDynamicDhikrText(geminiApiKey);
+
+    const now = new Date();
+    let targetTime = new Date();
+    targetTime.setHours(Number(hour), Number(minute), 0, 0);
+
+    if (targetTime <= now) {
+      targetTime.setDate(targetTime.getDate() + 1);
+    }
+
+    const delay = targetTime.getTime() - now.getTime();
+
+    // جدولة الإشعار محلياً في حال غير المستخدم الوقت (حتى لو تكرر مرتين باليوم)
+    setTimeout(async () => {
+      try {
+        await LocalNotifications.schedule({
+          notifications: [{
+            title: "الأذكار",
+            body: messageText,
+            id: new Date().getTime(),
+            schedule: { at: new Date(new Date().getTime() + 1000) }
+          }]
+        });
+        console.log("تم إرسال إشعار الأذكار بنجاح:", messageText);
+      } catch (e) {
+        console.warn("فشل إرسال الإشعار المحلي:", e);
+      }
+    }, delay);
+
+    console.log(`تم تحديث وقت الإشعار بنجاح ليصبح على الساعة ${hour}:${minute}`);
+  }
+};
