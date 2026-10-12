@@ -39,7 +39,7 @@ jobs:
 
       - name: Upload OTA bundle to Capgo
         run: |
-          npx @capgo/cli@latest bundle upload 397ae4ec-53e2-473b-839d-ae932e652206 --bundle ${{ steps.package-version.outputs.version }} --channel production --path .
+          npx @capgo/cli@latest bundle upload app.nohoud.mobile --bundle ${{ steps.package-version.outputs.version }} --channel production --path .
         env:
           CAPGO_TOKEN: ${{ secrets.CAPGO_TOKEN }}
 
