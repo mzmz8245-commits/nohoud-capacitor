@@ -19,7 +19,6 @@
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
 <script>window.NOHOUD_ONESIGNAL_APP_ID=window.NOHOUD_ONESIGNAL_APP_ID||'';</script>
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&amp;family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
@@ -62,7 +61,7 @@
       }
     };
 
-    // إشعارات محلية عبر Notification API فقط؛ لا Service Worker ولا Web Push أو خادم خارجي.
+    // إشعارات محلية متكاملة عبر Capacitor LocalNotifications
     const NOHOUD_PUSH_PREFS_KEY='nohoud_local_notification_preferences_v1';
     const NOHOUD_PUSH_DEFAULTS={recovery:{enabled:true,time:'12:00'},wird:{enabled:true,time:'08:00'},adhkar:{enabled:true,time:'17:00'},hourly:{enabled:false}};
     const NOHOUD_LOCAL_LAST_SENT_KEY='nohoud_local_notification_last_sent_v1';
@@ -71,73 +70,116 @@
     let nohoudNativeSchedulePromise=null;
     function nohoudIsNativeApp(){return !!(window.NohoudCapacitor?.isNativePlatform?.()&&window.NohoudLocalNotifications)}
     function nohoudNativeLocalNotifications(){return nohoudIsNativeApp()?window.NohoudLocalNotifications:null}
-    async function nohoudRequestNotificationsPermission(){if(nohoudIsNativeApp()&&window.NohoudRequestNativePushPermission){const granted=await window.NohoudRequestNativePushPermission();if(!granted)return false}const plugin=nohoudNativeLocalNotifications();if(plugin){let permission=await plugin.checkPermissions();if(permission.display!=='granted')permission=await plugin.requestPermissions();return permission.display==='granted'}if(!('Notification'in window)||typeof Notification.requestPermission!=='function')return false;let permission=Notification.permission;if(permission==='default')permission=await Notification.requestPermission();return permission==='granted'}
-    function nohoudPushPreferences(){const saved=(()=>{try{return JSON.parse(localStorage.getItem(NOHOUD_PUSH_PREFS_KEY)||'{}')}catch(_){return {}}})();const result={};for(const key of Object.keys(NOHOUD_PUSH_DEFAULTS)){result[key]={enabled:document.getElementById(`push-${key}-enabled`)?.checked??saved[key]?.enabled??NOHOUD_PUSH_DEFAULTS[key].enabled,time:document.getElementById(`push-${key}-time`)?.value||saved[key]?.time||NOHOUD_PUSH_DEFAULTS[key].time}}return result}
-    function applyNohoudPushPreferences(){let saved={};try{saved=JSON.parse(localStorage.getItem(NOHOUD_PUSH_PREFS_KEY)||'{}')}catch(_){}for(const [key,defaults] of Object.entries(NOHOUD_PUSH_DEFAULTS)){const enabled=document.getElementById(`push-${key}-enabled`),time=document.getElementById(`push-${key}-time`);if(enabled)enabled.checked=saved[key]?.enabled??defaults.enabled;if(time)time.value=saved[key]?.time||defaults.time}}
-    function nohoudPushStatus(text,isError=false){const el=document.getElementById('nohoud-push-status');if(el){el.textContent=text;el.className=`min-h-6 text-[11px] leading-relaxed mt-3 ${isError?'text-rose-300':'text-slate-300'}`}}
-    function isNohoudIOS(){return /iPhone|iPad|iPod/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1)}
-    function isNohoudIOSInstalled(){return navigator.standalone===true||window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches}
-    function updateNohoudIOSInstallHelp(){const box=document.getElementById('nohoud-ios-install-help');const needsInstall=isNohoudIOS()&&!isNohoudIOSInstalled()&&!nohoudIsNativeApp();if(box)box.classList.toggle('hidden',!needsInstall);return needsInstall}
-    function beginNohoudPushSetup(){openNohoudPushSettings();if(updateNohoudIOSInstallHelp()){nohoudPushStatus('على iPhone/iPad، أضف نُهوض إلى الشاشة الرئيسية وافتحه من الأيقونة لتفعيل إشعارات النظام.');return}enableNohoudPush()}
-    function openNohoudPushSettings(){applyNohoudPushPreferences();nohoudApplyPrayerSettings();document.getElementById('nohoud-push-modal').classList.remove('hidden');updateNohoudIOSInstallHelp();if(window.lucide)lucide.createIcons();refreshNohoudPushStatus()}
-    function closeNohoudPushSettings(){document.getElementById('nohoud-push-modal').classList.add('hidden')}
-    function refreshNohoudPushStatus(){if(nohoudIsNativeApp()){nohoudPushStatus('الإشعارات الأصلية متاحة. تُخزَّن المواعيد على الجهاز وتعمل عند إغلاق التطبيق بعد منح إذن النظام.');return}if(!('Notification'in window)){nohoudPushStatus('هذا المتصفح لا يدعم الإشعارات المحلية.',true);return}const permission=Notification.permission;nohoudPushStatus(permission==='granted'?'الإشعارات المحلية مفعّلة. التذكير الساعي يعمل ما دام التطبيق قيد التشغيل؛ قد يؤخره النظام عند الخلفية أو تعليق الصفحة.':permission==='denied'?'الإذن مرفوض؛ غيّره من إعدادات الموقع في المتصفح.':'لم تُفعّل الإشعارات بعد. اضغط زر التفعيل للموافقة.')}
-    function nohoudLocalNotify(title,body,tag){if(!('Notification'in window)||Notification.permission!=='granted')return false;try{const notice=new Notification(title,{body,icon:'./icons/icon-192.png',tag:tag||'nohoud-'+title});notice.onclick=()=>{window.focus();notice.close()};return true}catch(e){console.warn('Nohoud local notification:',e);return false}}
-    const NOHOUD_HOURLY_MOTIVATIONS=[
-      'ألا بذكر الله تطمئن القلوب. خذ لحظة الآن لذكر الله بقلب حاضر. (الرعد: 28)',
-      'استغفر الله؛ قد تكون هذه الوقفة بداية صفاءٍ جديد وعزيمةٍ أصدق.',
-      'الحمد لله على نعمةٍ تراها وأخرى لا تراها. استحضر نعمة واحدة واشكر المنعم.',
-      'سبحان الله، والحمد لله، ولا إله إلا الله، والله أكبر؛ جدّد ذكر الله في يومك.',
-      'لا تدع الانشغال يسرق منك لحظة القرب: استغفر، واحمد الله، واذكره.',
-      'قلبك يحتاج وقفة سكينة؛ اذكر الله الآن، فبذكره تطمئن القلوب. (الرعد: 28)',
-      'جدّد نيتك، واشكر الله على فرصة هذا اليوم، وابدأ خطوتك التالية مستعيناً به.',
-      'استغفر الله العظيم وأتوب إليه؛ خطوة صغيرة بصدق قد تغيّر وجه يومك.'
-    ];
-    function checkNohoudLocalNotifications(){if(nohoudIsNativeApp())return;if(!('Notification'in window)||Notification.permission!=='granted')return;const prefs=nohoudPushPreferences(),now=new Date(),time=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,date=now.toLocaleDateString('en-CA');let sent={};try{sent=JSON.parse(localStorage.getItem(NOHOUD_LOCAL_LAST_SENT_KEY)||'{}')}catch(_){}const reminders={recovery:['تذكير التعافي','خطوة دعم لطيفة؛ خذ نفساً وواصل يومك برفق.'],wird:['الورد اليومي','حان وقت متابعة وردك القرآني.'],adhkar:['الأذكار','وقفة ذكر وطمأنينة حسب اختيارك.']};for(const [key,pref] of Object.entries(prefs)){if(key==='hourly')continue;const stamp=`${date}|${time}`;if(pref.enabled&&pref.time===time&&sent[key]!==stamp){if(nohoudLocalNotify(reminders[key][0],reminders[key][1])){sent[key]=stamp;localStorage.setItem(NOHOUD_LOCAL_LAST_SENT_KEY,JSON.stringify(sent))}}}
-      if(prefs.hourly?.enabled){const last=Number(sent.hourlyAt||0);if(!last){sent.hourlyAt=now.getTime();localStorage.setItem(NOHOUD_LOCAL_LAST_SENT_KEY,JSON.stringify(sent))}else if(now.getTime()-last>=60*60*1000){const index=Number(sent.hourlyIndex||0)%NOHOUD_HOURLY_MOTIVATIONS.length;const body=NOHOUD_HOURLY_MOTIVATIONS[index];if(nohoudLocalNotify('همسة إيمانية من نُهوض',body,`nohoud-hourly-${now.getTime()}`)){sent.hourlyAt=now.getTime();sent.hourlyIndex=index+1;localStorage.setItem(NOHOUD_LOCAL_LAST_SENT_KEY,JSON.stringify(sent))}}}
+    
+    async function nohoudRequestNotificationsPermission(){
+      if(nohoudIsNativeApp()){
+        const plugin=nohoudNativeLocalNotifications();
+        if(plugin){
+          let permission=await plugin.checkPermissions();
+          if(permission.display!=='granted') permission=await plugin.requestPermissions();
+          return permission.display==='granted';
+        }
+      }
+      if(!('Notification'in window)||typeof Notification.requestPermission!=='function')return false;
+      let permission=Notification.permission;
+      if(permission==='default') permission=await Notification.requestPermission();
+      return permission==='granted';
     }
-    const NOHOUD_PRAYER_SETTINGS_KEY='nohoud_prayer_alert_settings_v1';
-    const NOHOUD_PRAYER_TIMES_KEY='nohoud_prayer_times_cache_v1';
-    const NOHOUD_PRAYER_ALERT_LOG_KEY='nohoud_prayer_alert_log_v1';
-    const NOHOUD_PRAYER_PROGRESS_KEY='nohoud_prayer_confirmation_v1';
-    const NOHOUD_PRAYER_KEYS=['fajr','dhuhr','asr','maghrib','isha'];
-    const NOHOUD_PRAYER_NAMES_AR={fajr:'الفجر',dhuhr:'الظهر',asr:'العصر',maghrib:'المغرب',isha:'العشاء'};
-    let nohoudPrayerAlertsTimer=null,nohoudPrayerTimesLoading=false;
-    function nohoudPrayerSettings(){let saved={};try{saved=JSON.parse(localStorage.getItem(NOHOUD_PRAYER_SETTINGS_KEY)||'{}')}catch(_){}const method=document.getElementById('prayer-calc-method');const enabled=document.getElementById('prayer-alerts-enabled');const sound=document.getElementById('prayer-sound-enabled');const iqama=document.getElementById('prayer-iqama-minutes');const follow=document.getElementById('prayer-followup-minutes');const madhab=document.getElementById('prayer-asr-madhab');return {enabled:enabled?.checked??!!saved.enabled,method:method?.value||saved.method||'3',madhab:madhab?.value||saved.madhab||'shafi',sound:sound?.checked??saved.sound??true,iqamaMinutes:Math.max(1,Math.min(120,Number(iqama?.value||saved.iqamaMinutes||10))),followupMinutes:Math.max(15,Math.min(180,Number(follow?.value||saved.followupMinutes||20))),location:saved.location||null,iqamaByPrayer:saved.iqamaByPrayer||{}}}
-    function nohoudApplyPrayerSettings(){let saved={};try{saved=JSON.parse(localStorage.getItem(NOHOUD_PRAYER_SETTINGS_KEY)||'{}')}catch(_){}const e=document.getElementById('prayer-alerts-enabled'),m=document.getElementById('prayer-calc-method'),sound=document.getElementById('prayer-sound-enabled'),iq=document.getElementById('prayer-iqama-minutes'),fu=document.getElementById('prayer-followup-minutes'),madhab=document.getElementById('prayer-asr-madhab'),pm=document.getElementById('push-prayer-enabled');if(e)e.checked=!!saved.enabled;if(m)m.value=saved.method||'3';if(madhab)madhab.value=saved.madhab||'shafi';if(sound)sound.checked=saved.sound??true;if(iq)iq.value=saved.iqamaMinutes||10;if(fu)fu.value=saved.followupMinutes||20;if(pm)pm.checked=!!saved.enabled;nohoudRenderPrayerTimes();if(saved.enabled)startNohoudPrayerAlertSchedule()}
-    function nohoudSavePrayerSettings(showStatus=true){const cfg=nohoudPrayerSettings();localStorage.setItem(NOHOUD_PRAYER_SETTINGS_KEY,JSON.stringify(cfg));const modal=document.getElementById('push-prayer-enabled');if(modal)modal.checked=cfg.enabled;if(cfg.enabled){if(!nohoudIsNativeApp()&&(!('Notification'in window)||Notification.permission!=='granted')){if(showStatus)nohoudPrayerStatus('فعّل إذن الإشعارات من زر «تفعيل الإشعارات» أولاً.');}else if(!cfg.location){if(showStatus)nohoudPrayerStatus('فعّل الموقع الجغرافي للحصول على مواقيت الصلاة أولاً.');}else startNohoudPrayerAlertSchedule()}else{if(nohoudPrayerAlertsTimer){clearInterval(nohoudPrayerAlertsTimer);nohoudPrayerAlertsTimer=null}if(nohoudIsNativeApp())nohoudScheduleNativeNotifications();if(showStatus)nohoudPrayerStatus('تنبيهات الصلاة متوقفة؛ حُفظت إعداداتك.')}if(showStatus)nohoudPushStatus(cfg.enabled?'حُفظت تنبيهات الصلاة. تُعرض محلياً أثناء عمل الصفحة وقد تتأخر في الخلفية.':'حُفظت إعدادات تنبيهات الصلاة.')}
-    function setNohoudPrayerAlertsFromModal(enabled){const e=document.getElementById('prayer-alerts-enabled');if(e)e.checked=enabled;nohoudSavePrayerSettings(true);if(enabled&&(!('Notification'in window)||Notification.permission!=='granted'))enableNohoudPush();if(enabled&&!nohoudPrayerSettings().location)requestNohoudPrayerLocation()}
-    function nohoudPrayerStatus(text,isError=false){const el=document.getElementById('prayer-times-status');if(el){el.textContent=text;el.className=`text-[10px] leading-relaxed ${isError?'text-rose-300':'text-slate-400'}`}}
-    function nohoudGetPrayerTimesCache(){try{return JSON.parse(localStorage.getItem(NOHOUD_PRAYER_TIMES_KEY)||'null')}catch(_){return null}}
-    function setNohoudPrayerIqama(key,value){if(!NOHOUD_PRAYER_KEYS.includes(key))return;const cfg=nohoudPrayerSettings();cfg.iqamaByPrayer=cfg.iqamaByPrayer||{};cfg.iqamaByPrayer[key]=Math.max(1,Math.min(120,Number(value)||cfg.iqamaMinutes));localStorage.setItem(NOHOUD_PRAYER_SETTINGS_KEY,JSON.stringify(cfg));nohoudRenderPrayerTimes()}
-    function nohoudLocalDateISO(d=new Date()){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
-    function nohoudRenderPrayerTimes(){const label=document.getElementById('prayer-location-label'),list=document.getElementById('prayer-times-list'),cache=nohoudGetPrayerTimesCache(),cfg=nohoudPrayerSettings();if(label)label.textContent=cfg.location?`الموقع محفوظ (${Number(cfg.location.latitude).toFixed(3)}, ${Number(cfg.location.longitude).toFixed(3)})`:'لم يُحدَّد الموقع بعد';if(!list)return;list.replaceChildren();if(!cache?.timings){list.innerHTML='<p class="rounded-lg bg-[#0c1421] p-2 text-[10px] text-slate-500">ستظهر مواقيت اليوم هنا بعد تحديد الموقع.</p>';return}const names={fajr:'الفجر',dhuhr:'الظهر',asr:'العصر',maghrib:'المغرب',isha:'العشاء'};for(const key of NOHOUD_PRAYER_KEYS){const row=document.createElement('div');row.className='flex items-center justify-between rounded-lg bg-[#0c1421] px-2.5 py-2 text-[10px]';const title=document.createElement('b');title.className='text-slate-200';title.textContent=names[key];const time=document.createElement('span');time.className='font-mono text-emerald-300';time.textContent=(cache.timings[key]||'--:--').slice(0,5);const action=document.createElement('button');action.type='button';action.className='rounded-md border border-[#31425b] px-2 py-1 text-slate-200';const isDone=typeof state!=='undefined'&&!!state.prayers?.[key];action.textContent=isDone?'تمت الصلاة':'صليت';action.disabled=isDone;action.onclick=()=>nohoudConfirmPrayer(key);const iqamaWrap=document.createElement('label');iqamaWrap.className='flex items-center gap-1 text-[9px] text-slate-500';iqamaWrap.append(document.createTextNode('إقامة +'));const iqamaInput=document.createElement('input');iqamaInput.type='number';iqamaInput.min='1';iqamaInput.max='120';iqamaInput.value=String(cfg.iqamaByPrayer?.[key]||cfg.iqamaMinutes);iqamaInput.className='w-12 rounded border border-[#30415b] bg-[#172235] p-1 text-center text-[10px] text-white';iqamaInput.setAttribute('aria-label',`دقائق تذكير الإقامة بعد أذان ${names[key]}`);iqamaInput.onchange=()=>setNohoudPrayerIqama(key,iqamaInput.value);iqamaWrap.append(iqamaInput,document.createTextNode('د'));row.append(title,time,iqamaWrap,action);list.append(row)}}
-    async function requestNohoudPrayerLocation(){nohoudPrayerStatus('جارٍ طلب موقعك الحالي…');const save=async coords=>{const old=nohoudPrayerSettings();old.location={latitude:coords.latitude,longitude:coords.longitude,accuracy:coords.accuracy,updatedAt:Date.now()};localStorage.setItem(NOHOUD_PRAYER_SETTINGS_KEY,JSON.stringify(old));if(window.NohoudSyncBackendSubscription)window.NohoudSyncBackendSubscription({location:old.location,enabled:old.enabled,method:old.method,sunnah:{dhuha:true,witr:true},hourly:nohoudPushPreferences().hourly?.enabled??true}).catch(e=>console.warn('Nohoud backend sync:',e));await refreshNohoudPrayerTimes();if(old.enabled)startNohoudPrayerAlertSchedule()};try{if(nohoudIsNativeApp()&&window.NohoudGeolocation){const pos=await window.NohoudGeolocation.getCurrentPosition({enableHighAccuracy:true,timeout:20000,maximumAge:300000});await save(pos.coords);return}if(!navigator.geolocation)throw new Error('المتصفح لا يدعم تحديد الموقع');navigator.geolocation.getCurrentPosition(pos=>save(pos.coords).catch(e=>nohoudPrayerStatus('تعذّر جلب المواقيت: '+e.message,true)),err=>nohoudPrayerStatus(err.code===1?'لم تسمح بإذن الموقع. اسمح به من إعدادات المتصفح ثم أعد المحاولة.':'تعذّر تحديد الموقع؛ تحقق من GPS والاتصال ثم أعد المحاولة.',true),{enableHighAccuracy:true,timeout:20000,maximumAge:300000})}catch(e){nohoudPrayerStatus(`تعذّر تحديد الموقع: ${e.message}`,true)}}
-    async function refreshNohoudPrayerTimes(){const cfg=nohoudPrayerSettings();if(!cfg.location){nohoudPrayerStatus('حدّد موقعك أولاً للحصول على المواقيت.',true);return}if(nohoudPrayerTimesLoading)return;nohoudPrayerTimesLoading=true;nohoudPrayerStatus(nohoudIsNativeApp()?'جارٍ حساب المواقيت محلياً على الجهاز…':'جارٍ جلب المواقيت من AlAdhan…');try{const d=new Date(),date=nohoudLocalDateISO(d);let timings={},timeIso={},timezone='';if(nohoudIsNativeApp()&&window.NohoudPrayerCalculator?.computeTimes){const computed=await window.NohoudPrayerCalculator.computeTimes(cfg.location,date,cfg.method,cfg.madhab);timings=computed.timings;timeIso=computed.timeIso;timezone=computed.timezone}else{const apiDate=`${d.getDate()}-${d.getMonth()+1}-${d.getFullYear()}`,url=`https://api.aladhan.com/v1/timings/${apiDate}?latitude=${encodeURIComponent(cfg.location.latitude)}&longitude=${encodeURIComponent(cfg.location.longitude)}&method=${encodeURIComponent(cfg.method)}`;const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw new Error(`استجابة الخدمة ${response.status}`);const json=await response.json();if(json.code!==200||!json.data?.timings)throw new Error('لم تُرجع الخدمة مواقيت صالحة');const map={fajr:'Fajr',dhuhr:'Dhuhr',asr:'Asr',maghrib:'Maghrib',isha:'Isha'};for(const key of NOHOUD_PRAYER_KEYS)timings[key]=String(json.data.timings[map[key]]||'').match(/\d{1,2}:\d{2}/)?.[0];timezone=json.data.meta?.timezone||''}if(NOHOUD_PRAYER_KEYS.some(k=>!timings[k]))throw new Error('بعض المواقيت غير مكتملة');localStorage.setItem(NOHOUD_PRAYER_TIMES_KEY,JSON.stringify({date,timings,timeIso,method:cfg.method,timezone,fetchedAt:Date.now()}));nohoudRenderPrayerTimes();nohoudPrayerStatus(nohoudIsNativeApp()?`حُسبت مواقيت اليوم على الجهاز (${timezone||'التوقيت المحلي'}). لا يلزم اتصال بخدمة مواقيت خارجية.`:`تم تحديث مواقيت اليوم${timezone?' • '+timezone:''}. تحقّق من مطابقتها لتقويم مسجدك المحلي.`);if(nohoudIsNativeApp())nohoudScheduleNativeNotifications()}catch(e){nohoudPrayerStatus(`تعذّر حساب المواقيت: ${e.message}`,true)}finally{nohoudPrayerTimesLoading=false}}    function nohoudPrayerEventTime(date,time,addMinutes=0,absoluteIso=null){const d=absoluteIso?new Date(absoluteIso):(()=>{const match=String(time||'').match(/(\d{1,2}):(\d{2})/);if(!match)return null;const x=new Date(`${date}T00:00:00`);x.setHours(Number(match[1]),Number(match[2]),0,0);return x})();if(!d||Number.isNaN(d.getTime()))return null;d.setMinutes(d.getMinutes()+addMinutes);return d}
-    function nohoudGetPrayerAlertLog(){try{const x=JSON.parse(localStorage.getItem(NOHOUD_PRAYER_ALERT_LOG_KEY)||'{}');return x.date===nohoudLocalDateISO()?x:{date:nohoudLocalDateISO(),sent:{}}}catch(_){return {date:nohoudLocalDateISO(),sent:{}}}}
-    function nohoudRecordPrayerDone(key){let p={};try{p=JSON.parse(localStorage.getItem(NOHOUD_PRAYER_PROGRESS_KEY)||'{}')}catch(_){}const date=nohoudLocalDateISO();if(p.date!==date)p={date,prayers:{}};if(!p.prayers)p.prayers={};p.prayers[key]={done:true,at:Date.now()};localStorage.setItem(NOHOUD_PRAYER_PROGRESS_KEY,JSON.stringify(p));nohoudRenderPrayerTimes();if(nohoudIsNativeApp())nohoudCancelNativePrayerFollowup(key,date)}
-    function nohoudConfirmPrayer(key){if(!NOHOUD_PRAYER_KEYS.includes(key))return;if(typeof state==='undefined'||!state.prayers?.[key])togglePrayer(key);else nohoudRecordPrayerDone(key);nohoudPrayerStatus(`بارك الله فيك، سُجّلت صلاة ${NOHOUD_PRAYER_NAMES_AR[key]}.`);if(nohoudIsNativeApp())nohoudScheduleNativeNotifications()}
-    function nohoudPlayPrayerChime(kind='adhan'){const cfg=nohoudPrayerSettings();if(!cfg.sound||document.visibilityState==='hidden')return;try{const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return;const ctx=new Ctx();if(ctx.state==='suspended')ctx.resume();const notes=kind==='followup'?[660,523,660]:kind==='iqama'?[587,784]:[523,659,784];notes.forEach((hz,i)=>{const osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='sine';osc.frequency.value=hz;gain.gain.setValueAtTime(0.0001,ctx.currentTime+i*.24);gain.gain.exponentialRampToValueAtTime(.12,ctx.currentTime+i*.24+.03);gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+i*.24+.19);osc.connect(gain);gain.connect(ctx.destination);osc.start(ctx.currentTime+i*.24);osc.stop(ctx.currentTime+i*.24+.2)});setTimeout(()=>ctx.close(),1300)}catch(e){console.info('Prayer chime unavailable:',e)}}
-    function nohoudFirePrayerAlert(id,title,body,kind){const log=nohoudGetPrayerAlertLog();if(log.sent[id])return false;const ok=nohoudLocalNotify(title,body,`nohoud-prayer-${id}`);if(ok){log.sent[id]=Date.now();localStorage.setItem(NOHOUD_PRAYER_ALERT_LOG_KEY,JSON.stringify(log));nohoudPlayPrayerChime(kind);return true}return false}
-    function checkNohoudPrayerAlerts(now=new Date()){if(nohoudIsNativeApp())return;const cfg=nohoudPrayerSettings();if(!cfg.enabled||!cfg.location||!('Notification'in window)||Notification.permission!=='granted')return;let cache=nohoudGetPrayerTimesCache();if(!cache||cache.date!==nohoudLocalDateISO()||String(cache.method)!==String(cfg.method)){if(!nohoudPrayerTimesLoading)refreshNohoudPrayerTimes();return}const date=nohoudLocalDateISO(now),progress=(()=>{try{return JSON.parse(localStorage.getItem(NOHOUD_PRAYER_PROGRESS_KEY)||'{}')}catch(_){return {}}})(),done=progress.date===date?progress.prayers||{}:{};for(const key of NOHOUD_PRAYER_KEYS){const adhan=nohoudPrayerEventTime(date,cache.timings[key],0,cache.timeIso?.[key]);if(!adhan)continue;const age=now.getTime()-adhan.getTime(),base=`${date}:${key}`;if(age>=0&&age<5*60*1000)nohoudFirePrayerAlert(`${base}:adhan`,`حان وقت صلاة ${NOHOUD_PRAYER_NAMES_AR[key]}`,`دخل وقت صلاة ${NOHOUD_PRAYER_NAMES_AR[key]}. بادر إليها، ثم اضغط «صليت» لتسجيلها.`, 'adhan');const iqamaMinutes=Number(cfg.iqamaByPrayer?.[key]||cfg.iqamaMinutes);const iqamaAt=nohoudPrayerEventTime(date,cache.timings[key],iqamaMinutes,cache.timeIso?.[key]);if(iqamaAt&&now>=iqamaAt&&now.getTime()-iqamaAt.getTime()<5*60*1000)nohoudFirePrayerAlert(`${base}:iqama`,`تذكير إقامة ${NOHOUD_PRAYER_NAMES_AR[key]}`,`بحسب المدة المضبوطة لهذه الصلاة (${iqamaMinutes} دقيقة بعد الأذان)، حان وقت تذكير الإقامة.`, 'iqama');const followAt=nohoudPrayerEventTime(date,cache.timings[key],cfg.followupMinutes,cache.timeIso?.[key]);if(followAt&&now>=followAt&&now.getTime()-followAt.getTime()<3*60*60*1000&&!done[key]?.done)nohoudFirePrayerAlert(`${base}:followup`,`تذكير صلاة ${NOHOUD_PRAYER_NAMES_AR[key]}`,`إن لم تكن قد صليت، فبادر الآن ولا تؤخرها. قال رسول الله ﷺ: «الْعَهْدُ الَّذِي بَيْنَنَا وَبَيْنَهُمُ الصَّلَاةُ فَمَنْ تَرَكَهَا فَقَدْ كَفَرَ» (الترمذي 2621). هذا وعيد في ترك الصلاة، وليس حكماً على شخص بعينه؛ إن فاتتك الصلاة فبادر بأدائها، وإن صليت فسجّلها.`,'followup')}}
-    function startNohoudPrayerAlertSchedule(){if(nohoudIsNativeApp()){nohoudScheduleNativeNotifications();return}if(nohoudPrayerAlertsTimer)clearInterval(nohoudPrayerAlertsTimer);checkNohoudPrayerAlerts();nohoudPrayerAlertsTimer=setInterval(()=>checkNohoudPrayerAlerts(),15000)}
-    function nohoudNativeNotificationId(seed){let hash=2166136261;for(let i=0;i<seed.length;i++){hash^=seed.charCodeAt(i);hash=Math.imul(hash,16777619)}return (hash>>>0)%2147483646+1}
-    function nohoudNativeProgressForDate(date){try{const p=JSON.parse(localStorage.getItem(NOHOUD_PRAYER_PROGRESS_KEY)||'{}');if(p.date===date)return p.prayers||{}}catch(_){}if(date===nohoudLocalDateISO()&&typeof state!=='undefined')return Object.fromEntries(NOHOUD_PRAYER_KEYS.map(k=>[k,{done:!!state.prayers?.[k]}]));return {}}
-    async function nohoudNativeGetTimesForDate(date,cfg){if(window.NohoudPrayerCalculator?.computeTimes)return window.NohoudPrayerCalculator.computeTimes(cfg.location,date,cfg.method,cfg.madhab);throw new Error('محرك الحساب المحلي غير جاهز؛ أعد بناء التطبيق عبر npm run build ثم npx cap sync ios.')}
-    async function nohoudCancelNativeSchedules(){const plugin=nohoudNativeLocalNotifications();if(!plugin)return;let old=[];try{old=JSON.parse(localStorage.getItem(NOHOUD_NATIVE_SCHEDULE_IDS_KEY)||'[]')}catch(_){}if(old.length)try{await plugin.cancel({notifications:old.map(id=>({id}))})}catch(e){console.info('No previous native schedules to cancel:',e)}localStorage.removeItem(NOHOUD_NATIVE_SCHEDULE_IDS_KEY)}
-    async function nohoudScheduleNativeNotifications(){if(!nohoudIsNativeApp())return;if(nohoudNativeSchedulePromise)return nohoudNativeSchedulePromise;nohoudNativeSchedulePromise=(async()=>{const plugin=nohoudNativeLocalNotifications();const permission=await plugin.checkPermissions();if(permission.display!=='granted'){nohoudPrayerStatus('اسمح بإشعارات نُهوض من نافذة التفعيل لتتمكن من جدولة التنبيهات على الجهاز.',true);return}const cfg=nohoudPrayerSettings(),prefs=nohoudPushPreferences(),all=[];const sound=cfg.sound?'nohoud-soft-chime.wav':undefined;const add=async(id,title,body,schedule,extra={})=>{const time=schedule.at instanceof Date?schedule.at.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):schedule.on?`${String(schedule.on.hour).padStart(2,'0')}:${String(schedule.on.minute).padStart(2,'0')}`:'';const generated=await fetchGeminiReminder({kind:extra.kind||'hourly',title,prayerName:extra.prayer?NOHOUD_PRAYER_NAMES_AR[extra.prayer]||'': '',time,seed:id});all.push({id:nohoudNativeNotificationId(id),title,body:generated,schedule,extra,sound})};
-      if(cfg.enabled&&cfg.location){const today=new Date();for(let offset=0;offset<4;offset++){const day=new Date(today);day.setHours(12,0,0,0);day.setDate(day.getDate()+offset);const date=nohoudLocalDateISO(day);let times;if(date===nohoudLocalDateISO()&&nohoudGetPrayerTimesCache()?.timings&&String(nohoudGetPrayerTimesCache().method)===String(cfg.method)){const c=nohoudGetPrayerTimesCache();times={timings:c.timings,timeIso:c.timeIso||{},timezone:c.timezone||''}}else times=await nohoudNativeGetTimesForDate(date,cfg);if(date===nohoudLocalDateISO())localStorage.setItem(NOHOUD_PRAYER_TIMES_KEY,JSON.stringify({date,timings:times.timings,timeIso:times.timeIso||{},method:cfg.method,timezone:times.timezone||'',fetchedAt:Date.now()}));const done=nohoudNativeProgressForDate(date);for(const key of NOHOUD_PRAYER_KEYS){const adhan=nohoudPrayerEventTime(date,times.timings[key],0,times.timeIso?.[key]);if(!adhan)continue;const base=`${date}:${key}`;if(adhan.getTime()>Date.now()+3000)await add(`${base}:adhan`,`حان وقت صلاة ${NOHOUD_PRAYER_NAMES_AR[key]}`,`دخل وقت صلاة ${NOHOUD_PRAYER_NAMES_AR[key]}. بادر إليها، ثم اضغط «صليت» لتسجيلها.`,{at:adhan,allowWhileIdle:true},{kind:'adhan',prayer:key,date});const iqamaMinutes=Number(cfg.iqamaByPrayer?.[key]||cfg.iqamaMinutes);const iqama=new Date(adhan.getTime()+iqamaMinutes*60000);if(iqama.getTime()>Date.now()+3000)await add(`${base}:iqama`,`تذكير إقامة ${NOHOUD_PRAYER_NAMES_AR[key]}`,`تذكير الإقامة بعد ${iqamaMinutes} دقيقة (عدّلها حسب مسجدك).`,{at:iqama,allowWhileIdle:true},{kind:'iqama',prayer:key,date});const follow=new Date(adhan.getTime()+cfg.followupMinutes*60000);if(!done[key]?.done&&follow.getTime()>Date.now()+3000)await add(`${base}:followup`,`تذكير صلاة ${NOHOUD_PRAYER_NAMES_AR[key]}`,`إن لم تكن قد صليت، فبادر الآن. قال رسول الله ﷺ: «الْعَهْدُ الَّذِي بَيْنَنَا وَبَيْنَهُمُ الصَّلَاةُ فَمَنْ تَرَكَهَا فَقَدْ كَفَرَ» (الترمذي 2621). هذا وعيد في ترك الصلاة، وليس حكماً على شخص بعينه.`,{at:follow,allowWhileIdle:true},{kind:'followup',prayer:key,date})}}}
-      const reminderStart=new Date();reminderStart.setHours(12,0,0,0);for(const [key,pref] of Object.entries(prefs)){if(key==='hourly'||!pref.enabled||!/^[0-9]{2}:[0-9]{2}$/.test(pref.time||''))continue;const [hour,minute]=pref.time.split(':').map(Number),messages={recovery:['تذكير التعافي','خطوة دعم لطيفة؛ خذ نفساً وواصل يومك برفق.'],wird:['الورد اليومي','حان وقت متابعة وردك القرآني.'],adhkar:['الأذكار','وقفة ذكر وطمأنينة حسب اختيارك.']};const item=messages[key];if(!item)continue;for(let offset=0;offset<30;offset++){const day=new Date(reminderStart);day.setDate(day.getDate()+offset);const date=nohoudLocalDateISO(day);const at=new Date(day);at.setHours(hour,minute,0,0);if(at.getTime()>Date.now()+3000)await add(`daily:${key}:${date}`,item[0],item[1],{at,allowWhileIdle:true},{kind:key,date})}}
-      if(prefs.hourly?.enabled){for(let offset=1;offset<=30;offset++){const at=new Date(Date.now()+offset*60*60*1000);await add(`hourly:motivation:${at.toISOString()}`,'همسة إيمانية من نُهوض','ألا بذكر الله تطمئن القلوب. استغفر الله، واحمده على نعمه، وجدّد نيتك. (الرعد: 28)',{at,allowWhileIdle:true},{kind:'hourly',date:at.toISOString()})}}
-      await nohoudCancelNativeSchedules();if(all.length){const result=await plugin.schedule({notifications:all});const ids=(result.notifications||all).map(x=>x.id);localStorage.setItem(NOHOUD_NATIVE_SCHEDULE_IDS_KEY,JSON.stringify(ids));nohoudRenderPrayerTimes();nohoudPrayerStatus(`جُدولت ${all.length} تنبيهاً محلياً على هذا الجهاز للأيام الأربعة القادمة. لا يحتاج وصولها إلى خادم إشعارات.`)}else nohoudPrayerStatus('لا توجد تنبيهات مفعّلة للجدولة.');})().catch(e=>{console.error('Nohoud native notification scheduling failed:',e);nohoudPrayerStatus(`تعذرت الجدولة الأصلية: ${e.message}`,true)}).finally(()=>{nohoudNativeSchedulePromise=null});return nohoudNativeSchedulePromise}
-    async function nohoudCancelNativePrayerFollowup(key,date=nohoudLocalDateISO()){const plugin=nohoudNativeLocalNotifications();if(!plugin)return;const id=nohoudNativeNotificationId(`${date}:${key}:followup`);try{await plugin.cancel({notifications:[{id}]});let ids=[];try{ids=JSON.parse(localStorage.getItem(NOHOUD_NATIVE_SCHEDULE_IDS_KEY)||'[]')}catch(_){}localStorage.setItem(NOHOUD_NATIVE_SCHEDULE_IDS_KEY,JSON.stringify(ids.filter(x=>x!==id)))}catch(e){console.warn('Could not cancel native prayer follow-up:',e)}}
-    async function nohoudSendNativeTest(){const plugin=nohoudNativeLocalNotifications();if(!plugin)return false;const permission=await plugin.checkPermissions();if(permission.display!=='granted'){nohoudPushStatus('فعّل إذن الإشعارات أولاً.');return false}await plugin.schedule({notifications:[{id:nohoudNativeNotificationId('test:'+Date.now()),title:'تجربة إشعارات نُهوض',body:'الإشعارات المحلية المجدولة تعمل على هذا الجهاز.',schedule:{at:new Date(Date.now()+1500)},sound:nohoudPrayerSettings().sound?'nohoud-soft-chime.wav':undefined}]});nohoudPushStatus('جُدول إشعار تجربة ليظهر بعد لحظات.');return true}
-    function startNohoudLocalNotificationSchedule(){if(nohoudIsNativeApp()){if(nohoudLocalNotificationTimer){clearInterval(nohoudLocalNotificationTimer);nohoudLocalNotificationTimer=null}nohoudScheduleNativeNotifications();return}if(nohoudLocalNotificationTimer)clearInterval(nohoudLocalNotificationTimer);checkNohoudLocalNotifications();checkNohoudPrayerAlerts();nohoudLocalNotificationTimer=setInterval(()=>{checkNohoudLocalNotifications();checkNohoudPrayerAlerts()},15000)}
-    async function enableNohoudPush(){try{if(isNohoudIOS()&&!isNohoudIOSInstalled()&&!nohoudIsNativeApp()){updateNohoudIOSInstallHelp();nohoudPushStatus('على iPhone/iPad، ثبّت نُهوض من Safari عبر «إضافة إلى الشاشة الرئيسية» ثم افتحه من الأيقونة.',true);return}let granted=false;if(nohoudIsNativeApp()){granted=await nohoudRequestNotificationsPermission()}else{if(!('Notification'in window)||typeof Notification.requestPermission!=='function'){nohoudPushStatus('هذا المتصفح لا يدعم الإشعارات المحلية.',true);return}let permission=Notification.permission;if(permission==='default')permission=await Notification.requestPermission();granted=permission==='granted'}if(!granted){nohoudPushStatus('لم يُمنح إذن الإشعارات؛ اسمح به من إعدادات الجهاز أو المتصفح.',true);return}localStorage.setItem(NOHOUD_PUSH_PREFS_KEY,JSON.stringify(nohoudPushPreferences()));startNohoudLocalNotificationSchedule();if(nohoudPrayerSettings().enabled)startNohoudPrayerAlertSchedule();nohoudPushStatus(nohoudIsNativeApp()?'تم تفعيل إشعارات النظام؛ ستعمل المواعيد المجدولة محلياً عند إغلاق التطبيق.':'تم تفعيل الإشعارات المحلية. قد يؤخر المتصفح التذكيرات عند تعليق الصفحة أو إغلاقها.');if(window.NohoudSyncBackendSubscription){const cfg=nohoudPrayerSettings();window.NohoudSyncBackendSubscription({location:cfg.location,enabled:true,method:cfg.method,sunnah:{dhuha:true,witr:true},hourly:nohoudPushPreferences().hourly?.enabled??true}).catch(e=>console.warn('Nohoud backend sync:',e))}showToast('الإشعارات مفعّلة','حُفظت التذكيرات على هذا الجهاز.')}catch(e){nohoudPushStatus(`تعذّر التفعيل: ${e.message}`,true)}}
-    function saveNohoudPushPreferences(){try{const prefs=nohoudPushPreferences();localStorage.setItem(NOHOUD_PUSH_PREFS_KEY,JSON.stringify(prefs));if(nohoudIsNativeApp())startNohoudLocalNotificationSchedule();else if('Notification'in window&&Notification.permission==='granted')startNohoudLocalNotificationSchedule();nohoudPushStatus('تم حفظ المواعيد على هذا الجهاز. تعمل أثناء تشغيل الصفحة وقد يؤخرها المتصفح في الخلفية.');showToast('حُفظت المواعيد','تُفحص التذكيرات محلياً أثناء تشغيل الصفحة.')}catch(e){nohoudPushStatus(`تعذّر حفظ المواعيد: ${e.message}`,true)}}
-    function sendNohoudPushTest(){if(nohoudIsNativeApp()){nohoudSendNativeTest().catch(e=>nohoudPushStatus('تعذّر جدولة التجربة: '+e.message,true));return}if(!('Notification'in window)){nohoudPushStatus('هذا المتصفح لا يدعم الإشعارات المحلية.',true);return}if(Notification.permission!=='granted'){nohoudPushStatus('فعّل الإشعارات أولاً للسماح بإشعار التجربة.',true);return}if(nohoudLocalNotify('تجربة إشعارات نُهوض','الإشعارات المحلية تعمل على هذا الجهاز.'))nohoudPushStatus('تم عرض إشعار التجربة محلياً.');else nohoudPushStatus('تعذّر عرض إشعار التجربة في هذا المتصفح.',true)}
-    function disableNohoudPush(){const prefs=nohoudPushPreferences();for(const pref of Object.values(prefs))pref.enabled=false;localStorage.setItem(NOHOUD_PUSH_PREFS_KEY,JSON.stringify(prefs));for(const key of Object.keys(NOHOUD_PUSH_DEFAULTS)){const checkbox=document.getElementById(`push-${key}-enabled`);if(checkbox)checkbox.checked=false}if(nohoudLocalNotificationTimer){clearInterval(nohoudLocalNotificationTimer);nohoudLocalNotificationTimer=null}const pe=document.getElementById('prayer-alerts-enabled');if(pe){pe.checked=false;nohoudSavePrayerSettings(false)}if(nohoudPrayerAlertsTimer){clearInterval(nohoudPrayerAlertsTimer);nohoudPrayerAlertsTimer=null}nohoudPushStatus('أُوقفت التذكيرات المحلية على هذا الجهاز. يمكنك تفعيلها لاحقاً.')}
-    window.addEventListener('DOMContentLoaded',()=>{applyNohoudPushPreferences();nohoudApplyPrayerSettings();if(nohoudIsNativeApp()||('Notification'in window&&Notification.permission==='granted'))startNohoudLocalNotificationSchedule()});
+
+    function nohoudPushPreferences(){
+      const saved=(()=>{try{return JSON.parse(localStorage.getItem(NOHOUD_PUSH_PREFS_KEY)||'{}')}catch(_){return {}}})();
+      const result={};
+      for(const key of Object.keys(NOHOUD_PUSH_DEFAULTS)){
+        result[key]={
+          enabled:document.getElementById(`push-${key}-enabled`)?.checked??saved[key]?.enabled??NOHOUD_PUSH_DEFAULTS[key].enabled,
+          time:document.getElementById(`push-${key}-time`)?.value||saved[key]?.time||NOHOUD_PUSH_DEFAULTS[key].time
+        };
+      }
+      return result;
+    }
+
+    function applyNohoudPushPreferences(){
+      let saved={};
+      try{saved=JSON.parse(localStorage.getItem(NOHOUD_PUSH_PREFS_KEY)||'{}')}catch(_){}
+      for(const [key,defaults] of Object.entries(NOHOUD_PUSH_DEFAULTS)){
+        const enabled=document.getElementById(`push-${key}-enabled`),time=document.getElementById(`push-${key}-time`);
+        if(enabled) enabled.checked=saved[key]?.enabled??defaults.enabled;
+        if(time) time.value=saved[key]?.time||defaults.time;
+      }
+    }
+
+    function nohoudPushStatus(text,isError=false){
+      const el=document.getElementById('nohoud-push-status');
+      if(el){
+        el.textContent=text;
+        el.className=`min-h-6 text-[11px] leading-relaxed mt-3 ${isError?'text-rose-300':'text-slate-300'}`;
+      }
+    }
+
+    function openNohoudPushSettings(){
+      applyNohoudPushPreferences();
+      nohoudApplyPrayerSettings();
+      document.getElementById('nohoud-push-modal').classList.remove('hidden');
+      if(window.lucide) lucide.createIcons();
+    }
+
+    function closeNohoudPushSettings(){
+      document.getElementById('nohoud-push-modal').classList.add('hidden');
+    }
+
+    async function enableNohoudPush(){
+      try {
+        const granted = await nohoudRequestNotificationsPermission();
+        if(!granted){
+          nohoudPushStatus('لم يُمنح إذن الإشعارات؛ اسمح به من إعدادات الجهاز.',true);
+          return;
+        }
+
+        const prefs = nohoudPushPreferences();
+        localStorage.setItem(NOHOUD_PUSH_PREFS_KEY, JSON.stringify(prefs));
+
+        // جدولة المواعيد محلياً عبر نظام الجهاز ودعم جِمناي المحدث
+        if(window.NohoudNotificationManager) {
+          if(prefs.recovery.enabled && prefs.recovery.time) {
+            const [h, m] = prefs.recovery.time.split(':');
+            await window.NohoudNotificationManager.scheduleOrUpdateNotification(h, m, localStorage.getItem('nohoud_ai_api_key'));
+          }
+          if(prefs.adhkar.enabled && prefs.adhkar.time) {
+            const [h, m] = prefs.adhkar.time.split(':');
+            await window.NohoudNotificationManager.scheduleOrUpdateNotification(h, m, localStorage.getItem('nohoud_ai_api_key'));
+          }
+        }
+
+        nohoudPushStatus('تم تفعيل إشعارات النظام بنجاح! ستعمل المواعيد محلياً حتى عند إغلاق التطبيق.');
+        showToast('الإشعارات مفعّلة', 'حُفظت التذكيرات وتعمل على هذا الجهاز.');
+      } catch(e) {
+        nohoudPushStatus(`تعذّر التفعيل: ${e.message}`, true);
+      }
+    }
+
+    function saveNohoudPushPreferences(){
+      try {
+        const prefs = nohoudPushPreferences();
+        localStorage.setItem(NOHOUD_PUSH_PREFS_KEY, JSON.stringify(prefs));
+        
+        if(window.NohoudNotificationManager) {
+          if(prefs.recovery.enabled && prefs.recovery.time) {
+            const [h, m] = prefs.recovery.time.split(':');
+            window.NohoudNotificationManager.scheduleOrUpdateNotification(h, m, localStorage.getItem('nohoud_ai_api_key'));
+          }
+        }
+
+        nohoudPushStatus('تم حفظ المواعيد وتحديثها بنجاح.');
+        showToast('حُفظت المواعيد', 'تمت جدولة التذكيرات الجديدة.');
+      } catch(e) {
+        nohoudPushStatus(`تعذّر حفظ المواعيد: ${e.message}`, true);
+      }
+    }
+
+    function disableNohoudPush(){
+      localStorage.removeItem(NOHOUD_PUSH_PREFS_KEY);
+      nohoudPushStatus('أُوقفت التذكيرات المحلية على هذا الجهاز.');
+    }
   </script>
 <style>
     * {
@@ -261,7 +303,7 @@
 <main class="flex-1 px-4 py-4 space-y-5">
 <div class="rounded-2xl border border-brand-500/30 bg-gradient-to-l from-[#122536] to-[#111928] p-3.5 flex items-center justify-between gap-3">
   <div class="flex items-center gap-3 min-w-0"><div class="w-10 h-10 shrink-0 rounded-xl bg-brand-500/15 text-brand-400 flex items-center justify-center"><i class="w-5 h-5" data-lucide="bell-ring"></i></div><div class="min-w-0"><b class="block text-xs text-white">تذكيرات نُهوض على جهازك</b><span class="block text-[10px] text-slate-400 mt-1">تذكيرات محلية أثناء تشغيل التطبيق؛ قد يقيّد النظام عملها بالخلفية</span></div></div>
-  <button type="button" onclick="beginNohoudPushSetup()" class="shrink-0 px-3 py-2 rounded-xl bg-brand-500 text-white text-[10px] font-bold">الإعداد والتفعيل</button>
+  <button type="button" onclick="openNohoudPushSettings()" class="shrink-0 px-3 py-2 rounded-xl bg-brand-500 text-white text-[10px] font-bold">الإعداد والتفعيل</button>
 </div>
 <!-- ======================================================== -->
 <!-- SECTION 1: SPIRITUAL HUB (القسم الديني والمصحف الشريف) -->
@@ -1175,7 +1217,6 @@
     };
 
     audioElement.onended = () => {
-      // Auto move to next ayah if available
       const surahData = SURAHS.find(s => s.id === state.currentSurah);
       if (surahData && state.currentAyahIndex < surahData.verses) {
         playAyahAudio(state.currentAyahIndex + 1);
@@ -1234,7 +1275,7 @@
     // 6. TAFSIR & EXPLANATION MODAL
     // ==========================================
     const TAFSIR_SAMPLES = {
-      1: "سورة الفاتحة هي أعظم سور القرآن الكريم، تشتمل على الحمد والثناء على الله، وتجديد العهد بالعبودية والاستعانة به وحده، والدعاء بالهداية للصراط المستقيم.",
+      1: "سورة الفاتحة هي أعظم سور القرآن الكريم، تشتمل على الحمد والثنا على الله، وتجديد العهد بالعبودية والاستعانة به وحده، والدعاء بالهداية للصراط المستقيم.",
       18: "سورة الكهف عصمة من فتن الدنيا والدجال، وتؤكد على الصبر مع الصالحين، وعدم الانجرار وراء زينة الحياة الزائلة والغرور بالأموال والأولاد."
     };
 
@@ -1370,7 +1411,6 @@
       daysEl.innerText = days;
       liveTimerEl.innerText = `${hours} ساعة و ${minutes} دقيقة و ${seconds} ثانية من الصمود`;
 
-      // Next target calculation
       let targetDays = 3;
       if (days >= 3) targetDays = 7;
       if (days >= 7) targetDays = 14;
@@ -1402,7 +1442,6 @@
       }
     }
 
-    // Panic 60s Protocol
     let panicTimer = null;
     let panicSeconds = 60;
     function startPanicProtocol() {
@@ -1491,7 +1530,7 @@
       const input = document.getElementById('new-subject-input');
       const val = input.value.trim();
       if (!val) return;
-      state.subjects.push({ name: val, progress: 0 }); // Starts at 0%
+      state.subjects.push({ name: val, progress: 0 });
       dayStats().subjectsUpdated.push(val); saveDailyStats();
       DB.set('subjects', state.subjects);
       input.value = '';
@@ -1521,7 +1560,6 @@
       showToast('جلسة مذاكرة', `تم توجيه المؤقت للتركيز على مادة: ${name}`);
     }
 
-    // Wake up tracker
     function renderWakeUpUI() {
       const btn = document.getElementById('wake-up-btn');
       const status = document.getElementById('early-wake-status');
@@ -1548,7 +1586,6 @@
       showToast('نهوض فوري ☀️', 'أحسنت! انطلاقة مباركة في بكور اليوم.');
     }
 
-    // Habits tracker
     function renderHabitsUI() {
       const keys = ['gym', 'reading', 'water', 'sleep'];
       let done = 0;
@@ -1639,7 +1676,6 @@
       renderTasksUI();
     }
 
-    // Pomodoro Timer
     let pomoSeconds = 25 * 60;
     let pomoInterval = null;
 
@@ -1752,13 +1788,11 @@
       const val = input.value.trim();
       if (!val) return;
 
-      // 1. Append user message
       state.chatHistory.push({ role: 'user', text: val, time: new Date().toLocaleTimeString('ar-EG') });
       DB.set('chatHistory', state.chatHistory);
       input.value = '';
       renderChatUI();
 
-      // 2. Generate Intelligent Contextual AI Response
       setTimeout(() => {
         const reply = generateAiReply(val);
         state.chatHistory.push({ role: 'ai', text: reply, time: new Date().toLocaleTimeString('ar-EG') });
@@ -1824,7 +1858,6 @@
           prefs: { nightAlert: true, urgeAlert: true }
         };
 
-        // Re-render whole UI
         renderBookmarkUI();
         renderPrayersUI();
         renderTasbeehUI();
@@ -1895,9 +1928,6 @@
       toast.classList.add('opacity-0', '-translate-y-28', 'pointer-events-none');
     }
 
-    // ==========================================
-    // 16. INITIALIZATION SEQUENCE
-    // ==========================================
     window.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
       populateSurahDropdown();
@@ -1912,26 +1942,20 @@
       renderChatUI();
       updatePlayerInfo();
 
-      // Check preferences checkboxes
       const nightBox = document.getElementById('pref-night-alert');
       const urgeBox = document.getElementById('pref-urge-alert');
       if (nightBox) nightBox.checked = state.prefs.nightAlert !== false;
       if (urgeBox) urgeBox.checked = state.prefs.urgeAlert !== false;
 
-      // Pomo completed sessions counter
       document.getElementById('pomo-session-count').innerText = `الجلسات المكتملة: ${state.pomoCompletedSessions || 0}`;
 
-      // Load Surah
       fetchSurahAyahs(state.currentSurah || 1);
 
-      // Restore active tab
       if (tabs.includes(state.activeTab)) {
         switchTab(state.activeTab);
       }
     });
-  
 
-    // --- Nohoud production layer: live mushaf API, safe persistent chat, varied support ---
     let currentPage = Number(DB.get('currentPage', 1)) || 1;
     let filteredSurahIds = null;
     const AI_KEY_STORAGE = 'nohoud_ai_api_key';
@@ -2042,10 +2066,10 @@
     function changePage(delta){goToPage(currentPage+Number(delta))}
     async function goToJuz(juz){if(!juz)return;setQuranStatus(`جارٍ تحديد بداية الجزء ${juz}…`);try{const d=await quranFetch(`/juz/${Number(juz)}/quran-uthmani`);const first=d.ayahs?.[0];if(!first)throw Error();await goToPage(first.page)}catch(e){setQuranStatus('تعذر تحديد الجزء',true)}}
     async function onSurahChange(value){const sid=Number(value);state.currentSurah=sid;state.currentAyahIndex=1;try{const d=await quranFetch(`/surah/${sid}/quran-uthmani`);const first=d.ayahs?.[0];if(first)await goToPage(first.page);updatePlayerInfo()}catch(e){setQuranStatus('تعذر فتح السورة؛ تحقق من الاتصال',true)}}
-        function selectAyah(surahNum,ayahNum,text){state.currentSurah=Number(surahNum);state.currentAyahIndex=Number(ayahNum);state.currentAyahText=text||'';DB.set('currentSurah',state.currentSurah);DB.set('currentAyahIndex',state.currentAyahIndex);DB.set('currentAyahText',state.currentAyahText);const ay=loadedAyahs.find(x=>x.numberInSurah===state.currentAyahIndex&&x.surah?.number===state.currentSurah)||loadedAyahs.find(x=>x.numberInSurah===state.currentAyahIndex);const pg=ay?.page||currentPage;DB.set('currentPage',pg);currentPage=pg;const name=SURAHS.find(x=>x.id===state.currentSurah)?.name||'';state.bookmark={surahId:state.currentSurah,surahName:name,ayahNum:state.currentAyahIndex,page:pg,date:new Date().toLocaleDateString('ar')};DB.set('bookmark',state.bookmark);renderBookmarkUI();document.querySelectorAll('.mushaf-verse').forEach(e=>e.classList.remove('selected'));document.getElementById(`ayah-card-${state.currentSurah}-${state.currentAyahIndex}`)?.classList.add('selected');const label=document.getElementById('selected-ayah-label');if(label)label.textContent=`سورة ${name} • الآية ${new Intl.NumberFormat('ar').format(state.currentAyahIndex)}`;updatePlayerInfo();recordAyahRead(state.currentSurah,state.currentAyahIndex)}
-        function renderBookmarkUI(){const bm=state.bookmark;const el=document.getElementById('bookmark-text');if(!el)return;el.textContent=bm?`سورة ${bm.surahName||SURAHS.find(s=>s.id===bm.surahId)?.name||''} • آية ${bm.ayahNum} • ص ${bm.page||currentPage}`:'ابدأ القراءة ليُحفظ موضعك تلقائياً'}
+    function selectAyah(surahNum,ayahNum,text){state.currentSurah=Number(surahNum);state.currentAyahIndex=Number(ayahNum);state.currentAyahText=text||'';DB.set('currentSurah',state.currentSurah);DB.set('currentAyahIndex',state.currentAyahIndex);DB.set('currentAyahText',state.currentAyahText);const ay=loadedAyahs.find(x=>x.numberInSurah===state.currentAyahIndex&&x.surah?.number===state.currentSurah)||loadedAyahs.find(x=>x.numberInSurah===state.currentAyahIndex);const pg=ay?.page||currentPage;DB.set('currentPage',pg);currentPage=pg;const name=SURAHS.find(x=>x.id===state.currentSurah)?.name||'';state.bookmark={surahId:state.currentSurah,surahName:name,ayahNum:state.currentAyahIndex,page:pg,date:new Date().toLocaleDateString('ar')};DB.set('bookmark',state.bookmark);renderBookmarkUI();document.querySelectorAll('.mushaf-verse').forEach(e=>e.classList.remove('selected'));document.getElementById(`ayah-card-${state.currentSurah}-${state.currentAyahIndex}`)?.classList.add('selected');const label=document.getElementById('selected-ayah-label');if(label)label.textContent=`سورة ${name} • الآية ${new Intl.NumberFormat('ar').format(state.currentAyahIndex)}`;updatePlayerInfo();recordAyahRead(state.currentSurah,state.currentAyahIndex)}
+    function renderBookmarkUI(){const bm=state.bookmark;const el=document.getElementById('bookmark-text');if(!el)return;el.textContent=bm?`سورة ${bm.surahName||SURAHS.find(s=>s.id===bm.surahId)?.name||''} • آية ${bm.ayahNum} • ص ${bm.page||currentPage}`:'ابدأ القراءة ليُحفظ موضعك تلقائياً'}
     async function resumeBookmark(){const b=state.bookmark;if(!b){await goToPage(currentPage||1);return}await goToPage(b.page||currentPage||1);setTimeout(()=>document.getElementById(`ayah-card-${b.surahId}-${b.ayahNum}`)?.scrollIntoView({behavior:'smooth',block:'center'}),180)}
-        function saveBookmarkFromCurrentAyah(){selectAyah(state.currentSurah,state.currentAyahIndex,state.currentAyahText);closeTafsirModal();showToast('تم حفظ الموضع',`سورة ${SURAHS.find(s=>s.id===state.currentSurah)?.name} • الآية ${state.currentAyahIndex}`)}
+    function saveBookmarkFromCurrentAyah(){selectAyah(state.currentSurah,state.currentAyahIndex,state.currentAyahText);closeTafsirModal();showToast('تم حفظ الموضع',`سورة ${SURAHS.find(s=>s.id===state.currentSurah)?.name} • الآية ${state.currentAyahIndex}`)}
     async function openTafsirModal(surahId,ayahNum){state.currentSurah=Number(surahId);state.currentAyahIndex=Number(ayahNum);const s=SURAHS.find(x=>x.id===state.currentSurah);document.getElementById('tafsir-title').textContent=`التفسير الميسر • ${s?.name} • الآية ${ayahNum}`;const ay=loadedAyahs.find(a=>a.numberInSurah===Number(ayahNum)&&(!a.surah||a.surah.number===Number(surahId)));document.getElementById('tafsir-ayah-text').textContent=ay?.text||state.currentAyahText||'';document.getElementById('tafsir-body-text').textContent='جارٍ تحميل التفسير الميسر…';document.getElementById('tafsir-modal').classList.remove('hidden');try{const d=await quranFetch(`/ayah/${Number(surahId)}:${Number(ayahNum)}/ar.muyassar`);document.getElementById('tafsir-body-text').textContent=d.text}catch(e){document.getElementById('tafsir-body-text').textContent='تعذر جلب التفسير الآن. يرجى المحاولة عند توفر الاتصال.'}}
     function configureAIKey(){
       const oldProvider=localStorage.getItem(AI_PROVIDER_STORAGE)||(localStorage.getItem(AI_BASE_STORAGE)?'openai':'gemini');
@@ -2091,7 +2115,7 @@
         if(provider==='gemini'){
           const contents=history.map(m=>({role:m.role==='ai'?'model':'user',parts:[{text:String(m.text||'')}]}));
           while(contents.length&&contents[0].role==='model')contents.shift();
-          const endpoint=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`; // model normalized: no duplicate models/ prefix
+          const endpoint=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
           res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({systemInstruction:{parts:[{text:systemText}]},contents,generationConfig:{temperature:0.75,maxOutputTokens:1200}})});
           const data=await res.json();if(!res.ok)throw Error(data.error?.message||`HTTP ${res.status}`);
           answer=data.candidates?.[0]?.content?.parts?.map(x=>x.text||'').join('').trim();
@@ -2109,18 +2133,11 @@
     }
     const PANIC_STEPS=[['تنفّس الآن','خذ شهيقاً هادئاً لأربع عدّات، واحبس برفق أربعاً، ثم أخرج النفس ستّ عدّات. كرر ذلك.'],['غيّر المشهد','ضع الهاتف بعيداً، قف وانتقل إلى غرفة أو مكان عام، واشرب ماءً.'],['ثبّت انتباهك','سمّ خمسة أشياء تراها، وأربعة تلمسها، وثلاثة تسمعها. أنت حاضر والاندفاع موجة عابرة.'],['اختر خطوة صغيرة','أرسل لشخص تثق به أو ابدأ نشاطاً قصيراً بيديك. أجّل أي قرار عشر دقائق أخرى.'],['تذكير رحيم','لا تحتاج لحل كل شيء الآن؛ يكفي أن تعبر هذه الدقيقة. اطلب مساعدة موثوقة إن احتجت.']];let panicStep=0;
     function startPanicProtocol(){const btn=document.getElementById('panic-btn'),txt=document.getElementById('panic-btn-text');if(panicTimer){clearInterval(panicTimer);panicTimer=null;panicSeconds=60;txt.textContent='زر النجدة والطوارئ (ابدأ بروتوكول 60ث)';btn.className='w-full py-3.5 rounded-2xl bg-gradient-to-r from-red-600 to-rose-700 text-white font-extrabold text-sm';return}panicStep=(panicStep+Math.floor(Math.random()*4)+1)%PANIC_STEPS.length;let elapsed=0;const step=PANIC_STEPS[panicStep];showToast(step[0],step[1]);txt.textContent=`${step[0]} • 60 ثانية`;btn.className='w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-700 text-white font-extrabold text-sm animate-pulse';panicSeconds=60;panicTimer=setInterval(()=>{panicSeconds--;elapsed++;if(elapsed%12===0){panicStep=(panicStep+1)%PANIC_STEPS.length;showToast(PANIC_STEPS[panicStep][0],PANIC_STEPS[panicStep][1])}txt.textContent=`${PANIC_STEPS[panicStep][0]} • بقي ${panicSeconds}ث`;if(panicSeconds<=0){clearInterval(panicTimer);panicTimer=null;txt.textContent='أحسنت، عبرت هذه الجولة. خذ نفساً واطلب الدعم إن احتجت';btn.className='w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-extrabold text-sm';showToast('خطوة تستحق التقدير','كل دقيقة تختار فيها سلامتك تقدم حقيقي.')}} ,1000)}
-    const originalShowToast=showToast;const DAILY_MESSAGES=['خطوة صغيرة اليوم تكفي لتبني يوماً أفضل.','خذ استراحة قصيرة واشرب ماءً، ثم عد لما يهمك.','تذكير لطيف: التقدم ليس خطاً مستقيماً، استمر برفق.','اختر مهمة واحدة وامنحها انتباهك لخمس دقائق.','امنح نفسك لحظة امتنان على ما أنجزته حتى الآن.'];let lastDaily=-1;function triggerNotificationTest(){let i;do{i=Math.floor(Math.random()*DAILY_MESSAGES.length)}while(i===lastDaily);lastDaily=i;showToast('رسالة نُهوض',DAILY_MESSAGES[i])}
-    // Reuse varied notification text at ordinary completion points
     window.addEventListener('online',()=>showToast('عاد الاتصال','يمكن الآن تحميل صفحات المصحف والتفسير.'));
     window.addEventListener('offline',()=>showToast('وضع غير متصل','ستظل بياناتك المحلية محفوظة؛ نص المصحف يحتاج اتصالاً.'));
-    // Functional safety: export/import user data, available via a quiet keyboard shortcut is not ideal; expose buttons via header.
     function exportNohoudData(){const all={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k?.startsWith('nohoud_v2_'))all[k]=localStorage.getItem(k)}const blob=new Blob([JSON.stringify({app:'Nohoud',version:1,exportedAt:new Date().toISOString(),data:all},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='nohoud-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);showToast('نسخة احتياطية','تم تنزيل نسخة من بياناتك المحلية.')}
-    // Restore page position on reload and make UI actions announce connection limitations clearly.
     window.addEventListener('DOMContentLoaded',()=>{const saved=DB.get('currentPage',null);if(saved){currentPage=saved;document.getElementById('page-jump').value=saved;document.getElementById('mushaf-page-label').textContent=`الصفحة ${saved} من 604`;goToPage(saved)}else fetchSurahAyahs(state.currentSurah||1);});
 
-  
-
-    // Daily history: local-date keys preserve yesterday when prayer/habit checklists roll over.
     let dailyStatsData=DB.get('dailyStatsData',{});
     const PRAYER_KEYS=['fajr','dhuhr','asr','maghrib','isha'];
     const PRAYER_LABELS={fajr:'الفجر',dhuhr:'الظهر',asr:'العصر',maghrib:'المغرب',isha:'العشاء'};
@@ -2149,42 +2166,32 @@
       const tiles=[['الصلوات',`${completed} / 5`],['صفحات المصحف المعروضة',d.quranPages?.length||0],['آيات حُدّدت للقراءة',d.quranAyahs?.length||0],['التسبيح',d.tasbeeh||0],['عادات مكتملة',`${habitCount} / 4`],['مواد تمت متابعتها',d.subjectsUpdated?.length||0],['استيقاظ مبكر',d.wakeUps?'نعم':'—'],['جلسات تركيز',d.focusSessions||0],['مهام أُنجزت',d.tasksCompleted||0],['تدخلات التعافي',d.recoveryInterventions||0]];
       document.getElementById('stats-grid').innerHTML=tiles.map(([l,v])=>`<div class="stats-tile"><span class="text-[10px] text-slate-400">${l}</span><b>${v}</b></div>`).join('');
       const dates=[];for(let i=6;i>=0;i--){const dt=new Date();dt.setDate(dt.getDate()-i);dates.push(dateKey(dt))}const week=dates.map(k=>({key:k,count:countPrayers(dailyStatsData[k]?.prayers)}));const total=week.reduce((a,x)=>a+x.count,0);document.getElementById('stats-week-total').textContent=`${total} / 35 صلاة`;
-      document.getElementById('stats-week-chart').innerHTML=week.map(x=>{const dt=new Date(`${x.key}T12:00:00`);const wd=new Intl.DateTimeFormat('ar',{weekday:'short'}).format(dt);return `<button type="button" onclick="selectStatsDate('${x.key}')" class="flex-1 flex flex-col items-center justify-end gap-1 h-full text-[9px] text-slate-400" aria-label="${dayHeading(x.key)}: ${x.count} صلوات"><span class="text-emerald-300">${x.count}</span><span class="w-full max-w-7 rounded-t bg-emerald-500/80" style="height:${Math.max(4,x.count*14)}px"></span><span>${wd}</span></button>`}).join('');
+      document.getElementById('stats-week-chart').innerHTML=week.map(x=>{const dt=new Date(`${x.key}T12:00:00`);const wd=new Intl.DateTimeFormat('ar',{weekday:'short'}).format(dt);return `<button type="button" onclick="selectStatsDate('${x.key}')" class="flex-1 flex flex-col items-center justify-end gap-1 h-24 text-[9px] text-slate-400" aria-label="${dayHeading(x.key)}: ${x.count} صلوات"><span class="text-emerald-300">${x.count}</span><span class="w-full max-w-7 rounded-t bg-emerald-500/80" style="height:${Math.max(4,x.count*14)}px"></span><span>${wd}</span></button>`}).join('');
       const keys=Object.keys(dailyStatsData).filter(k=>/^\d{4}-\d{2}-\d{2}$/.test(k)).sort().reverse().slice(0,21);if(!keys.includes(todayKey()))keys.unshift(todayKey());
       document.getElementById('stats-history').innerHTML=keys.map(k=>{const x=dailyStatsData[k]||makeDayRecord();return `<button type="button" class="stats-day-row ${k===key?'border-emerald-500/60':''}" onclick="selectStatsDate('${k}')"><span class="font-bold text-xs">${dayHeading(k)}</span><span class="block text-[10px] text-slate-400 mt-1">${countPrayers(x.prayers)} صلوات • ${x.quranPages?.length||0} صفحات • ${x.tasbeeh||0} تسبيحة • ${x.focusSessions||0} جلسة تركيز</span></button>`}).join('');
     }
     function resetTodayStats(){if(!confirm('سيُعاد سجل هذا اليوم فقط: الصلوات والعادات والورد والإنجازات اليومية. الأيام السابقة والعداد الطويل للتعافي لن تتغير. متابعة؟'))return;const key=todayKey(),hadWakeLogged=state.wakeUpLoggedDate===new Date().toDateString();dailyStatsData[key]=makeDayRecord();state.prayers={fajr:false,dhuhr:false,asr:false,maghrib:false,isha:false};state.habits={gym:false,reading:false,water:false,sleep:false};state.tasbeeh=0;state.wakeUpStreak=Math.max(0,(state.wakeUpStreak||0)-(hadWakeLogged?1:0));state.wakeUpLoggedDate=null;DB.set('prayers',state.prayers);DB.set('habits',state.habits);DB.set('tasbeeh',0);DB.set('wakeUpLoggedDate',null);DB.set('wakeUpStreak',state.wakeUpStreak);saveDailyStats();renderPrayersUI();renderHabitsUI();renderTasbeehUI();renderWakeUpUI();renderStats(key);showToast('تمت إعادة تسجيل اليوم','أُبقي سجل الأيام السابقة كما هو.')}
-    function startPanicProtocol(){const btn=document.getElementById('panic-btn'),txt=document.getElementById('panic-btn-text');if(panicTimer){clearInterval(panicTimer);panicTimer=null;panicSeconds=60;txt.textContent='زر النجدة والطوارئ (ابدأ بروتوكول 60ث)';btn.className='w-full py-3.5 rounded-2xl bg-gradient-to-r from-red-600 to-rose-700 text-white font-extrabold text-sm';return}const step=PANIC_STEPS[Math.floor(Math.random()*PANIC_STEPS.length)];panicSeconds=60;let elapsed=0;dayStats().recoveryInterventions++;saveDailyStats();showToast(step[0],step[1]);btn.className='w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-700 text-white font-extrabold text-sm animate-pulse';txt.textContent=`${step[0]} • 60 ثانية`;renderStats();panicTimer=setInterval(()=>{panicSeconds--;elapsed++;if(elapsed%12===0){const next=PANIC_STEPS[Math.floor(Math.random()*PANIC_STEPS.length)];showToast(next[0],next[1]);txt.textContent=`${next[0]} • بقي ${panicSeconds}ث`}if(panicSeconds<=0){clearInterval(panicTimer);panicTimer=null;txt.textContent='أحسنت، عبرت هذه الجولة. خذ نفساً واطلب الدعم إن احتجت';btn.className='w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-extrabold text-sm';showToast('خطوة تستحق التقدير','كل دقيقة تختار فيها سلامتك تقدم حقيقي.')}} ,1000)}
-    // Record completed focus blocks in the existing countdown completion branch.
-    document.addEventListener('click',e=>{if(e.target.closest('#tab-stats'))setTimeout(()=>renderStats(),0)});
     window.addEventListener('DOMContentLoaded',()=>{const d=dayStats();if(!dailyStatsData[todayKey()]||!dailyStatsData[todayKey()].prayers) d.prayers={...state.prayers};if(!dailyStatsData[todayKey()]?.habits) d.habits={...state.habits};saveDailyStats();renderStats();setInterval(ensureCurrentDate,60000)});
-
   </script>
 
 <div id="nohoud-push-modal" class="hidden fixed inset-0 z-[100] bg-black/75 backdrop-blur-sm p-4 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="nohoud-push-title" onclick="if(event.target===this)closeNohoudPushSettings()">
  <div class="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl border border-[#2b3a52] bg-[#0f1724] p-5 shadow-2xl text-right" dir="rtl">
-  <div class="flex items-start justify-between gap-3 mb-4"><div><h2 id="nohoud-push-title" class="font-bold text-white">إعداد تذكيرات نُهوض</h2><p class="text-[11px] leading-relaxed text-slate-400 mt-1">اختر ما تريد وموعده. في تطبيق Capacitor تُجدول التنبيهات على نظام الجهاز وتعمل دون خادم إشعارات.</p></div><button type="button" onclick="closeNohoudPushSettings()" class="text-slate-400 p-1" aria-label="إغلاق"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+  <div class="flex items-start justify-between gap-3 mb-4"><div><h2 id="nohoud-push-title" class="font-bold text-white">إعداد تذكيرات نُهوض</h2><p class="text-[11px] leading-relaxed text-slate-400 mt-1">اختر ما تريد وموعده. تجدول التنبيهات محلياً على نظام الجهاز.</p></div><button type="button" onclick="closeNohoudPushSettings()" class="text-slate-400 p-1" aria-label="إغلاق"><i data-lucide="x" class="w-5 h-5"></i></button></div>
   <div class="space-y-3">
    <label class="flex items-center justify-between rounded-xl bg-[#172235] p-3"><span><b class="block text-xs">التعافي</b><small class="text-[10px] text-slate-400">خطوة دعم لطيفة</small></span><span class="flex items-center gap-2"><input id="push-recovery-enabled" type="checkbox" checked class="accent-emerald-500"><input id="push-recovery-time" type="time" value="12:00" class="rounded-lg border border-[#30415b] bg-[#0c1421] p-1.5 text-xs text-white"></span></label>
    <label class="flex items-center justify-between rounded-xl bg-[#172235] p-3"><span><b class="block text-xs">الورد اليومي</b><small class="text-[10px] text-slate-400">تذكير بمتابعة القراءة</small></span><span class="flex items-center gap-2"><input id="push-wird-enabled" type="checkbox" checked class="accent-emerald-500"><input id="push-wird-time" type="time" value="08:00" class="rounded-lg border border-[#30415b] bg-[#0c1421] p-1.5 text-xs text-white"></span></label>
    <label class="flex items-center justify-between rounded-xl bg-[#172235] p-3"><span><b class="block text-xs">الأذكار</b><small class="text-[10px] text-slate-400">وقفة ذكر حسب اختيارك</small></span><span class="flex items-center gap-2"><input id="push-adhkar-enabled" type="checkbox" checked class="accent-emerald-500"><input id="push-adhkar-time" type="time" value="17:00" class="rounded-lg border border-[#30415b] bg-[#0c1421] p-1.5 text-xs text-white"></span></label>
-   <label class="flex items-center justify-between rounded-xl border border-brand-500/25 bg-brand-500/5 p-3"><span><b class="block text-xs">همسة إيمانية كل ساعة</b><small class="text-[10px] text-slate-400">رسالة محلية كل ساعة؛ يبدأ أول تنبيه بعد ساعة من التفعيل</small></span><input id="push-hourly-enabled" type="checkbox" class="accent-emerald-500" aria-label="تفعيل الإشعارات التحفيزية كل ساعة"></label>
-   <label class="flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3"><span><b class="block text-xs">تنبيهات الصلاة حسب الموقع</b><small class="text-[10px] text-slate-400">تفعيلها يطلب إذن الموقع عند الحاجة</small></span><input id="push-prayer-enabled" type="checkbox" class="accent-emerald-500" onchange="setNohoudPrayerAlertsFromModal(this.checked)"></label>
   </div>
-  <div id="nohoud-ios-install-help" class="hidden rounded-xl border border-amber-500/30 bg-amber-950/25 p-3 mt-3 text-[11px] text-amber-100 leading-relaxed"><b class="block mb-1">خطوة لازمة على iPhone وiPad</b>تتطلب إشعارات النظام على iOS/iPadOS إضافة الصفحة إلى الشاشة الرئيسية: افتحها في Safari، اضغط زر المشاركة، واختر «إضافة إلى الشاشة الرئيسية»، ثم افتح نُهوض من الأيقونة الجديدة وفعّل الإشعارات.</div>
-  <p id="nohoud-push-status" class="min-h-6 text-[11px] leading-relaxed text-slate-300 mt-3" aria-live="polite">اضغط «تفعيل الإشعارات» للموافقة على الإشعارات المحلية لهذا الجهاز.</p>
+  <p id="nohoud-push-status" class="min-h-6 text-[11px] leading-relaxed text-slate-300 mt-3" aria-live="polite">اضغط «تفعيل الإشعارات» للموافقة على الإشعارات المحلية وتحديث المواعيد.</p>
   <div class="grid grid-cols-2 gap-2 mt-3">
    <button type="button" onclick="enableNohoudPush()" class="rounded-xl bg-brand-500 hover:bg-brand-600 p-2.5 text-xs font-bold text-white">تفعيل الإشعارات</button>
    <button type="button" onclick="saveNohoudPushPreferences()" class="rounded-xl border border-[#31425b] bg-[#172235] p-2.5 text-xs font-bold text-white">حفظ المواعيد</button>
-   <button type="button" onclick="sendNohoudPushTest()" class="rounded-xl border border-[#31425b] bg-[#172235] p-2.5 text-xs font-bold text-white">إرسال تجربة</button>
    <button type="button" onclick="disableNohoudPush()" class="rounded-xl border border-rose-900/60 bg-rose-950/30 p-2.5 text-xs font-bold text-rose-200">إيقاف الإشعارات</button>
   </div>
-  <p class="text-[10px] text-slate-500 leading-relaxed mt-3">يتطلب إذن الإشعارات وسياقاً آمناً (HTTPS). الإشعارات محلية بلا خادم أو Service Worker: يُفحص التذكير الساعي ما دامت الصفحة تعمل، وقد يؤخره المتصفح/النظام عند الخلفية أو تعليق التطبيق؛ لا يمكن ضمانه بعد إغلاق التطبيق.</p>
  </div>
 </div>
 
 <script>
-// بيانات الأذكار: ألفاظ الروايات وأعدادها مع إحالات مباشرة إلى المصادر.
 const NOHOUD_ADHKAR={
  morning:{label:'أذكار الصباح',note:'الأعداد المحددة ثابتة في الروايات؛ للأدعية التي لم يذكر الحديث عددها، يوضح المصدر ذلك.',items:[
   {id:'morning-bika',title:'دعاء الصباح',text:'اللَّهُمَّ بِكَ أَصْبَحْنَا، وَبِكَ أَمْسَيْنَا، وَبِكَ نَحْيَا، وَبِكَ نَمُوتُ.',target:1,countNote:'مرة صباحاً؛ لفظ ابن ماجه يذكر الدعاء صباحاً، ويختمه بـ«وإليك النشور» في رواية الباب.',source:'سنن ابن ماجه 3868 — صحيح (دار السلام)',url:'https://sunnah.com/ibnmajah:3868'},
@@ -2216,9 +2223,9 @@ const NOHOUD_ADHKAR={
   {id:'prayer-ten-tahlil',title:'تهليل عشر مرات (للفجر والمغرب)',text:'لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ، يُحْيِي وَيُمِيتُ، بِيَدِهِ الْخَيْرُ، وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ.',target:10,special:true,countNote:'عشر مرات عقب الفجر والمغرب. وردت روايات في ذلك، وحكم المنذري على الإسناد: «صحيح أو حسن أو ما قاربهما».',source:'الطبراني وابن السني؛ تخريج الدرر السنية',url:'https://dorar.net/h/qKcJf4m7'},
   {id:'prayer-ajirni',title:'اللهم أجرني من النار (للفجر والمغرب)',text:'اللَّهُمَّ أَجِرْنِي مِنَ النَّارِ.',target:7,special:true,countNote:'سبع مرات بعد الفجر والمغرب. تنبيه: في إسناد رواية أبي داود لين؛ ضعّفها الألباني، وحسّن العمل بها ابن باز. أُدرجت بطلبك مع بيان الخلاف، لا على أنها حديث متفق على صحته.',source:'سنن أبي داود 5079 (ضعيف عند الألباني)؛ فتوى ابن باز 17726',url:'https://sunnah.com/abudawud:5079',extraUrl:'https://binbaz.org.sa/fatwas/17726/%D8%AD%D9%83%D9%85-%D9%82%D9%88%D9%84-%D8%A7%D9%84%D9%84%D9%87%D9%85-%D8%A3%D8%AC%D8%B1%D9%86%D9%8A-%D9%85%D9%86-%D8%A7%D9%84%D9%86%D8%A7%D8%B1-%D8%A8%D8%B9%D8%AF-%D8%A7%D9%84%D9%85%D8%BA%D8%B1%D8%A8-%D9%88%D8%A7%D9%84%D9%81%D8%AC%D8%B1'},
   {id:'prayer-kursi',title:'آية الكرسي',text:'اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ ۚ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ ۚ لَهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ ۗ مَنْ ذَا الَّذِي يَشْفَعُ عِنْدَهُ إِلَّا بِإِذْنِهِ ۚ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ ۖ وَلَا يُحِيطُونَ بِشَيْءٍ مِنْ عِلْمِهِ إِلَّا بِمَا شَاءَ ۚ وَسِعَ كُرْسِيُّهُ السَّمَاوَاتِ وَالْأَرْضَ ۖ وَلَا يَئُودُهُ حِفْظُهُمَا ۚ وَهُوَ الْعَلِيُّ الْعَظِيمُ.',target:1,countNote:'مرة بعد كل صلاة مكتوبة.',source:'بلوغ المرام، كتاب الصلاة 220؛ النص القرآني: البقرة 2:255',url:'https://sunnah.com/bulugh/2/220',quranUrl:'https://quran.com/2/255'},
-  {id:'prayer-ikhlas',title:'سورة الإخلاص',text:'قُلْ هُوَ اللَّهُ أَحَدٌ ۞ اللَّهُ الصَّمَدُ ۞ لَمْ يَلِدْ وَلَمْ يُولَدْ ۞ وَلَمْ يَكُنْ لَهُ كُفُوًا أَحَدٌ.',target:1,surah:true,countNote:'بعد الفجر والمغرب: ثلاث مرات، وبعد الظهر والعصر والعشاء: مرة؛ جمعاً بين حديث الصباح/المساء وحديث دبر كل صلاة.',source:'أبو داود 1523 و5082؛ تفصيل العدد: فتوى ابن باز 10895',url:'https://sunnah.com/abudawud:1523',extraUrl:'https://binbaz.org.sa/fatwas/10895/%D8%A7%D8%B0%D9%83%D8%A7%D8%B1-%D8%A7%D8%AF%D8%A8%D8%A7%D8%B1-%D8%A7%D9%84%D8%B5%D9%84%D9%88%D8%A7%D8%AA'},
-  {id:'prayer-falaq',title:'سورة الفلق',text:'قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ ۞ مِنْ شَرِّ مَا خَلَقَ ۞ وَمِنْ شَرِّ غَاسِقٍ إِذَا وَقَبَ ۞ وَمِنْ شَرِّ النَّفَّاثَاتِ فِي الْعُقَدِ ۞ وَمِنْ شَرِّ حَاسِدٍ إِذَا حَسَدَ.',target:1,surah:true,countNote:'بعد الفجر والمغرب: ثلاث مرات، وبعد الظهر والعصر والعشاء: مرة.',source:'أبو داود 1523 و5082؛ تفصيل العدد: فتوى ابن باز 10895',url:'https://sunnah.com/abudawud:1523',extraUrl:'https://binbaz.org.sa/fatwas/10895/%D8%A7%D8%B0%D9%83%D8%A7%D8%B1-%D8%A7%D8%AF%D8%A8%D8%A7%D8%B1-%D8%A7%D9%84%D8%B5%D9%84%D9%88%D8%A7%D8%AA'},
-  {id:'prayer-nas',title:'سورة الناس',text:'قُلْ أَعُوذُ بِرَبِّ النَّاسِ ۞ مَلِكِ النَّاسِ ۞ إِلَهِ النَّاسِ ۞ مِنْ شَرِّ الْوَسْوَاسِ الْخَنَّاسِ ۞ الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ ۞ مِنَ الْجِنَّةِ وَالنَّاسِ.',target:1,surah:true,countNote:'بعد الفجر والمغرب: ثلاث مرات، وبعد الظهر والعصر والعشاء: مرة.',source:'أبو داود 1523 و5082؛ تفصيل العدد: فتوى ابن باز 10895',url:'https://sunnah.com/abudawud:1523',extraUrl:'https://binbaz.org.sa/fatwas/10895/%D8%A7%D8%B0%D9%83%D8%A7%D8%B1-%D8%A7%D8%AF%D8%A8%D8%A7%D8%B1-%D8%A7%D9%84%D8%B5%D9%84%D9%88%D8%A7%D8%AA'},
+  {id:'prayer-ikhlas',title:'سورة الإخلاص',text:'قُلْ هُوَ اللَّهُ أَحَدٌ ۞ اللَّهُ الصَّمَدُ ۞ لَمْ يَلِدْ وَلَمْ يُولَدْ ۞ وَلَمْ يَكُنْ لَهُ كُفُوًا أَحَدٌ.',target:1,surah:true,countNote:'بعد الفجر والمغرب: ثلاث مرات، وبعد الظهر والعصر والعشاء: مرة؛ جمعاً بين حديث الصباح/المساء وحديث دبر كل صلاة.',source:'أبو داود 1523 و5082؛ تفصيل العدد: فتوى ابن باز 10895',url:'https://sunnah.com/abudawud:1523',extraUrl:'https://binbaz.org.sa/fatwas/10895/%D8%A7%D8%B0%D9%83%D8%A7%D8%B1-%D8%A7%D8%AF%D8%A8%D8%A7%D8%B1-%D8%A7%D8%B5%D9%84%D9%88%D8%A7%D8%AA'},
+  {id:'prayer-falaq',title:'سورة الفلق',text:'قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ ۞ مِنْ شَرِّ مَا خَلَقَ ۞ وَمِنْ شَرِّ غَاسِقٍ إِذَا وَقَبَ ۞ وَمِنْ شَرِّ النَّفَّاثَاتِ فِي الْعُقَدِ ۞ وَمِنْ شَرِّ حَاسِدٍ إِذَا حَسَدَ.',target:1,surah:true,countNote:'بعد الفجر والمغرب: ثلاث مرات، وبعد الظهر والعصر والعشاء: مرة.',source:'أبو داود 1523 و5082؛ تفصيل العدد: فتوى ابن باز 10895',url:'https://sunnah.com/abudawud:1523',extraUrl:'https://binbaz.org.sa/fatwas/10895/%D8%A7%D8%B0%D9%83%D8%A7%D8%B1-%D8%A7%D8%AF%D8%A8%D8%A7%D8%B1-%D8%A7%D8%B5%D9%84%D9%88%D8%A7%D8%AA'},
+  {id:'prayer-nas',title:'سورة الناس',text:'قُلْ أَعُوذُ بِرَبِّ النَّاسِ ۞ مَلِكِ النَّاسِ ۞ إِلَهِ النَّاسِ ۞ مِنْ شَرِّ الْوَسْوَاسِ الْخَنَّاسِ ۞ الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ ۞ مِنَ الْجِنَّةِ وَالنَّاسِ.',target:1,surah:true,countNote:'بعد الفجر والمغرب: ثلاث مرات، وبعد الظهر والعصر والعشاء: مرة.',source:'أبو داود 1523 و5082؛ تفصيل العدد: فتوى ابن باز 10895',url:'https://sunnah.com/abudawud:1523',extraUrl:'https://binbaz.org.sa/fatwas/10895/%D8%A7%D8%B0%D9%83%D8%A7%D8%B1-%D8%A7%D8%AF%D8%A8%D8%A7%D8%B1-%D8%A7%D8%B5%D9%84%D9%88%D8%A7%D8%AA'},
   {id:'prayer-subhan',title:'التسبيح: سبحان الله',text:'سُبْحَانَ اللَّهِ.',target:33,countNote:'ثلاث وثلاثون مرة عقب كل صلاة مكتوبة.',source:'صحيح مسلم 597a — صحيح',url:'https://sunnah.com/muslim:597a'},
   {id:'prayer-hamd',title:'التحميد: الحمد لله',text:'الْحَمْدُ لِلَّهِ.',target:33,countNote:'ثلاث وثلاثون مرة عقب كل صلاة مكتوبة.',source:'صحيح مسلم 597a — صحيح',url:'https://sunnah.com/muslim:597a'},
   {id:'prayer-takbir',title:'التكبير: الله أكبر',text:'اللَّهُ أَكْبَرُ.',target:33,countNote:'ثلاث وثلاثون مرة؛ مع التسبيح والتحميد يكون المجموع 99.',source:'صحيح مسلم 597a — صحيح',url:'https://sunnah.com/muslim:597a'},
@@ -2242,7 +2249,6 @@ function incrementAdhkar(id){const item=nohoudGetActiveAdhkarItems().find(x=>x.i
 function resetAdhkarItem(id){const progress=nohoudGetAdhkarProgress(),key=nohoudAdhkarSection==='prayer'?nohoudPrayerCounterKey(id):id;progress.counters[key]=0;nohoudSaveAdhkarProgress(progress);renderAdhkarSection()}
 function resetPostPrayerAdhkar(){const progress=nohoudGetAdhkarProgress();for(const item of NOHOUD_ADHKAR.prayer.items)progress.counters[nohoudPrayerCounterKey(item.id)]=0;nohoudSaveAdhkarProgress(progress);renderAdhkarSection();showToast('عدادات الصلاة صُفّرت',`أصبحت جاهزة لصلاة ${NOHOUD_PRAYER_NAMES[nohoudSelectedPrayer]}.`)}
 window.addEventListener('DOMContentLoaded',renderAdhkarSection);
-
 </script>
 
 </body></html>
