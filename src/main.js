@@ -118,8 +118,10 @@ async function fetchDynamicDhikrText(geminiApiKey) {
 
 window.NohoudNotificationManager = {
   async scheduleOrUpdateNotification(hour, minute, geminiApiKey) {
+    // 1. جلب الذكر المتجدد فوراً عند ضبط الوقت
     const messageText = await fetchDynamicDhikrText(geminiApiKey);
 
+    // 2. حساب وقت الإشعار القادم
     const now = new Date();
     let targetTime = new Date();
     targetTime.setHours(Number(hour), Number(minute), 0, 0);
@@ -128,25 +130,26 @@ window.NohoudNotificationManager = {
       targetTime.setDate(targetTime.getDate() + 1);
     }
 
-    const delay = targetTime.getTime() - now.getTime();
-
-    // جدولة الإشعار محلياً في حال غير المستخدم الوقت (حتى لو تكرر مرتين باليوم)
-    setTimeout(async () => {
-      try {
-        await LocalNotifications.schedule({
-          notifications: [{
-            title: "الأذكار",
-            body: messageText,
-            id: new Date().getTime(),
-            schedule: { at: new Date(new Date().getTime() + 1000) }
-          }]
-        });
-        console.log("تم إرسال إشعار الأذكار بنجاح:", messageText);
-      } catch (e) {
-        console.warn("فشل إرسال الإشعار المحلي:", e);
+    try {
+      // 3. إلغاء أي إشعارات قديمة متراكمة تجنباً للتكرار
+      const pending = await LocalNotifications.getPending();
+      if (pending.notifications.length > 0) {
+        await LocalNotifications.cancel(pending);
       }
-    }, delay);
 
-    console.log(`تم تحديث وقت الإشعار بنجاح ليصبح على الساعة ${hour}:${minute}`);
+      // 4. جدولة الإشعار مباشرة مع النظام بالنص الجديد والوقت المحدد
+      await LocalNotifications.schedule({
+        notifications: [{
+          title: "الأذكار",
+          body: messageText,
+          id: 1001, // معرف ثابت للإشعار لتحديثه بسهولة
+          schedule: { at: targetTime }
+        }]
+      });
+
+      console.log(`تم جدولة الإشعار بنجاح ليعمل في: ${targetTime.toLocaleString()} بالنص: "${messageText}"`);
+    } catch (e) {
+      console.warn("فشل جدولة الإشعار المحلي:", e);
+    }
   }
 };
