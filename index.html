@@ -108,22 +108,21 @@
       }
     }
 
-    function nohoudPushStatus(text,isError=false){
-      const el=document.getElementById('nohoud-push-status');
-      if(el){
-        el.textContent=text;
-        el.className=`min-h-6 text-[11px] leading-relaxed mt-3 ${isError?'text-rose-300':'text-slate-300'}`;
+    function openNohoudPushSettings(){
+      const modal = document.getElementById('nohoud-push-modal');
+      if (modal) {
+        modal.classList.remove('hidden');
+      }
+      if (window.lucide) {
+        lucide.createIcons();
       }
     }
 
-function openNohoudPushSettings(){
-  applyNohoudPushPreferences();
-  document.getElementById('nohoud-push-modal').classList.remove('hidden');
-  if(window.lucide) lucide.createIcons();
-}
-
     function closeNohoudPushSettings(){
-      document.getElementById('nohoud-push-modal').classList.add('hidden');
+      const modal = document.getElementById('nohoud-push-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+      }
     }
 
     async function enableNohoudPush(){
