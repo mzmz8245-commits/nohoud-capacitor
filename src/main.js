@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Geolocation } from '@capacitor/geolocation';
+import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import {
   CalculationMethod,
   Coordinates,
@@ -9,6 +10,9 @@ import {
 } from 'adhan';
 import { syncNohoudBackendSubscription } from './backend-notifications.js';
 import OneSignal from '@onesignal/capacitor-plugin';
+
+// تأكيد تشغيل الحزمة بنجاح لإعلام Capgo بمنع التراجع (Rollback)
+CapacitorUpdater.notifyAppReady();
 
 // يقرأها index.html لتمييز بيئة iOS الأصلية عن نسخة الويب.
 window.NohoudCapacitor = Capacitor;
