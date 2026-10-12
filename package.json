@@ -15,6 +15,7 @@
     "@capacitor/geolocation": "8.2.3",
     "@capacitor/ios": "8.5.3",
     "@capacitor/local-notifications": "8.3.1",
+    "@capgo/capacitor-updater": "@latest",
     "@onesignal/capacitor-plugin": "^1.2.0",
     "adhan": "4.4.6"
   },
