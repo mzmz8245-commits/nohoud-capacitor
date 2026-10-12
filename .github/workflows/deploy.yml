@@ -31,9 +31,15 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
+      - name: Get Version from package.json
+        id: package-version
+        run: |
+          VERSION=$(node -p "require('./package.json').version || '1.0.0'")
+          echo "version=${VERSION}-${{ github.run_number }}" >> $GITHUB_OUTPUT
+
       - name: Upload OTA bundle to Capgo
         run: |
-          npx @capgo/cli@latest bundle upload 397ae4ec-53e2-473b-839d-ae932e652206 --bundle ${{ github.sha }} --channel production --path .
+          npx @capgo/cli@latest bundle upload 397ae4ec-53e2-473b-839d-ae932e652206 --bundle ${{ steps.package-version.outputs.version }} --channel production --path .
         env:
           CAPGO_TOKEN: ${{ secrets.CAPGO_TOKEN }}
 
