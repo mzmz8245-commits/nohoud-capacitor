@@ -4,13 +4,5 @@
   "webDir": "dist",
   "ios": {
     "contentInset": "automatic"
-  },
-  "server": {
-    "url": "https://mzmz8245-commits.github.io/nohoud-capacitor/",
-    "allowNavigation": [
-      "mzmz8245-commits.github.io",
-      "nohoud-capacitor-znm9-g0ehwp6ct-mzmz8245-commits-projects.vercel.app"
-    ],
-    "cleartext": true
   }
 }
