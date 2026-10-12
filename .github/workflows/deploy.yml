@@ -26,14 +26,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install Dependencies
         run: npm install
 
       - name: Upload OTA bundle to Capgo
         run: |
-          npx @capgo/cli@latest bundle upload 397ae4ec-53e2-473b-839d-ae932e652206 --bundle ${{ github.sha }} --channel production
+          npx @capgo/cli@latest bundle upload 397ae4ec-53e2-473b-839d-ae932e652206 --bundle ${{ github.sha }} --channel production --path .
         env:
           CAPGO_TOKEN: ${{ secrets.CAPGO_TOKEN }}
 
