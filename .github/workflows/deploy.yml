@@ -26,13 +26,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-value: '20'
+          node-version: '20'
 
       - name: Install Dependencies
-        run: npm ci
-
-      - name: Build Web Assets
-        run: npm run build
+        run: npm install
 
       - name: Upload OTA bundle to Capgo
         run: |
