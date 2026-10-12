@@ -116,12 +116,11 @@
       }
     }
 
-    function openNohoudPushSettings(){
-      applyNohoudPushPreferences();
-      nohoudApplyPrayerSettings();
-      document.getElementById('nohoud-push-modal').classList.remove('hidden');
-      if(window.lucide) lucide.createIcons();
-    }
+function openNohoudPushSettings(){
+  applyNohoudPushPreferences();
+  document.getElementById('nohoud-push-modal').classList.remove('hidden');
+  if(window.lucide) lucide.createIcons();
+}
 
     function closeNohoudPushSettings(){
       document.getElementById('nohoud-push-modal').classList.add('hidden');
@@ -158,16 +157,20 @@
     }
 
     function saveNohoudPushPreferences(){
-      try {
-        const prefs = nohoudPushPreferences();
-        localStorage.setItem(NOHOUD_PUSH_PREFS_KEY, JSON.stringify(prefs));
-        
-        if(window.NohoudNotificationManager) {
-          if(prefs.recovery.enabled && prefs.recovery.time) {
-            const [h, m] = prefs.recovery.time.split(':');
-            window.NohoudNotificationManager.scheduleOrUpdateNotification(h, m, localStorage.getItem('nohoud_ai_api_key'));
-          }
-        }
+     try {
+       const prefs = nohoudPushPreferences();
+       localStorage.setItem(NOHOUD_PUSH_PREFS_KEY, JSON.stringify(prefs));
+       
+       if(window.NohoudNotificationManager) {
+          window.NohoudNotificationManager.scheduleOrUpdateNotification();
+       }
+
+       nohoudPushStatus('تم حفظ المواعيد وجدولة 28 إشعاراً بنجاح.');
+       showToast('حُفظت المواعيد', 'تمت جدولة التذكيرات الجديدة.');
+     } catch(e) {
+       nohoudPushStatus(`تعذّر حفظ المواعيد: ${e.message}`, true);
+     }
+   }
 
         nohoudPushStatus('تم حفظ المواعيد وتحديثها بنجاح.');
         showToast('حُفظت المواعيد', 'تمت جدولة التذكيرات الجديدة.');
