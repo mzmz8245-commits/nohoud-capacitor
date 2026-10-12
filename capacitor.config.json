@@ -4,5 +4,10 @@
   "webDir": "dist",
   "ios": {
     "contentInset": "automatic"
+  },
+  "plugins": {
+    "CapacitorUpdater": {
+      "appId": "397ae4ec-53e2-473b-839d-ae932e652206"
+    }
   }
 }
