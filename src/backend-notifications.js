@@ -1,4 +1,4 @@
-// Live View safe (OneSignal + Capacitor)
+// Live View safe (OneSignal + Capacitor + Dynamic Local Notifications)
 // src/backend-notifications.js
 
 const APP_ID = window.NOHOUD_ONESIGNAL_APP_ID || '';
@@ -153,13 +153,4 @@ export async function syncNohoudBackendSubscription({ location: loc, enabled = t
   };
   
   const result = await postSubscription(payload);
-  if (!result.ok && !result.skipped) {
-    storage.set(QUEUE_KEY, payload);
-    return { ok: false, queued: true, ...result };
-  }
-  if (result.ok) storage.remove(QUEUE_KEY);
-  return result;
-}
-
-window.NohoudRequestNativePushPermission = requestNohoudNativePushPermission;
-window.NohoudBackendNotifications = { sync: syncNohoudBackendSubscription };
+  if (!result.ok && !result
