@@ -1,69 +1,45 @@
-name: Build Capacitor iOS
+name: Build iOS IPA
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
-  build:
+  build-ios:
     runs-on: macos-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 23
+          node-version: 18
 
       - name: Install Dependencies
-        run: |
-          npm install
+        run: npm ci || npm install
 
-      - name: Ensure Capacitor Config Exists
-        run: |
-          if [ ! -f "capacitor.config.json" ] && [ ! -f "capacitor.config.ts" ]; then
-            echo '{ "appId": "com.nohoud.app", "appName": "nohoud", "webDir": "dist" }' > capacitor.config.json
-          fi
+      - name: Sync Capacitor iOS
+        run: npx cap sync ios
 
-      - name: Build Web Assets
+      - name: Build Xcode Project for iOS Device
         run: |
-          mkdir -p dist
-          cp -R * dist/ 2>/dev/null || true
-          rm -rf dist/.git dist/.github dist/ios dist/android
-
-      - name: Add and Sync iOS Platform
-        run: |
-          rm -rf ios
-          npx cap add ios
-          npx cap sync ios
-
-      - name: Find Workspace and Build (.app)
-        run: |
-          WORKSPACE=$(find ios -name "*.xcworkspace" | head -n 1)
-          if [ -z "$WORKSPACE" ]; then
-            echo "Error: Could not find any xcworkspace in ios/ folder!"
-            exit 1
-          fi
-          echo "Building workspace at: $WORKSPACE"
-          
-          xcodebuild -workspace "$WORKSPACE" \
+          xcodebuild -workspace ios/App/App.xcworkspace \
                      -scheme App \
+                     -sdk iphoneos \
                      -configuration Release \
-                     -sdk iphonesimulator \
                      -derivedDataPath build \
                      CODE_SIGNING_ALLOWED=NO
 
-      - name: Zip iOS Simulator App
+      - name: Package Payload to IPA
         run: |
-          cd build/Build/Products/Release-iphonesimulator
-          zip -r nohoud-ios-app.zip App.app
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -r Nohoud-Device.ipa Payload
 
-      - name: Upload Artifact
+      - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nohoud-ios-simulator-${{ github.run_number }}
-          path: build/Build/Products/Release-iphonesimulator/nohoud-ios-app.zip
+          name: Nohoud-Device-IPA
+          path: Nohoud-Device.ipa
