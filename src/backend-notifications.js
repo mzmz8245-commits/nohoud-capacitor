@@ -2,8 +2,8 @@
 // src/backend-notifications.js
 
 const APP_ID = window.NOHOUD_ONESIGNAL_APP_ID || '';
-// مهم: في Live View أصل الصفحة هو github.io فلا يصلح /api/subscribe/ النسبي
-const API_BASE = String(window.NOHOUD_API_BASE || 'https://YOUR-BACKEND-DOMAIN');
+// تم تحديث رابط السيرفر الأساسي برابطك المباشر على Vercel
+const API_BASE = String(window.NOHOUD_API_BASE || 'https://nohoud-capacitor-znm9-g0ehwp6ct-mzmz8245-commits-projects.vercel.app');
 const QUEUE_KEY = 'nohoud_sync_queue_v1';
 let webInitialized = false;
 let nativeInitialized = false;
