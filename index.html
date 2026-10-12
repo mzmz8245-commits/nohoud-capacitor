@@ -8,7 +8,7 @@
 <meta content="#10b981" name="theme-color"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
 <meta name="mobile-web-app-capable" content="yes"/>
-<meta name="apple-touch-icon" href="./icons/icon-192.png"/>
+<link rel="apple-touch-icon" href="./icons/icon-192.png"/>
 <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png"/>
 <meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"/>
 <meta content="نُهوض" name="apple-mobile-web-app-title"/>
@@ -18,7 +18,10 @@
 <!-- Tailwind CSS & Lucide Icons -->
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
-<script>window.NOHOUD_ONESIGNAL_APP_ID=window.NOHOUD_ONESIGNAL_APP_ID||'';</script>
+<script>window.NOHOUD_ONESIGNAL_APP_ID=window.NOHOUD_ONESIGNAL_APP_ID||'';
+// تحديث الأيقونات بأمان: لا يتعطل التطبيق إن لم تُحمَّل مكتبة lucide (انقطاع الإنترنت مثلاً)
+function nohoudRefreshIcons(){try{if(window.lucide&&typeof window.lucide.createIcons==='function')window.lucide.createIcons()}catch(e){console.warn('lucide',e)}}
+</script>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&amp;family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
@@ -60,121 +63,6 @@
         }
       }
     };
-
-    // إشعارات محلية متكاملة عبر Capacitor LocalNotifications
-    const NOHOUD_PUSH_PREFS_KEY='nohoud_local_notification_preferences_v1';
-    const NOHOUD_PUSH_DEFAULTS={recovery:{enabled:true,time:'12:00'},wird:{enabled:true,time:'08:00'},adhkar:{enabled:true,time:'17:00'},hourly:{enabled:false}};
-    const NOHOUD_LOCAL_LAST_SENT_KEY='nohoud_local_notification_last_sent_v1';
-    let nohoudLocalNotificationTimer=null;
-    const NOHOUD_NATIVE_SCHEDULE_IDS_KEY='nohoud_native_scheduled_notification_ids_v1';
-    let nohoudNativeSchedulePromise=null;
-    function nohoudIsNativeApp(){return !!(window.NohoudCapacitor?.isNativePlatform?.()&&window.NohoudLocalNotifications)}
-    function nohoudNativeLocalNotifications(){return nohoudIsNativeApp()?window.NohoudLocalNotifications:null}
-    
-    async function nohoudRequestNotificationsPermission(){
-      if(nohoudIsNativeApp()){
-        const plugin=nohoudNativeLocalNotifications();
-        if(plugin){
-          let permission=await plugin.checkPermissions();
-          if(permission.display!=='granted') permission=await plugin.requestPermissions();
-          return permission.display==='granted';
-        }
-      }
-      if(!('Notification'in window)||typeof Notification.requestPermission!=='function')return false;
-      let permission=Notification.permission;
-      if(permission==='default') permission=await Notification.requestPermission();
-      return permission==='granted';
-    }
-
-    function nohoudPushPreferences(){
-      const saved=(()=>{try{return JSON.parse(localStorage.getItem(NOHOUD_PUSH_PREFS_KEY)||'{}')}catch(_){return {}}})();
-      const result={};
-      for(const key of Object.keys(NOHOUD_PUSH_DEFAULTS)){
-        result[key]={
-          enabled:document.getElementById(`push-${key}-enabled`)?.checked??saved[key]?.enabled??NOHOUD_PUSH_DEFAULTS[key].enabled,
-          time:document.getElementById(`push-${key}-time`)?.value||saved[key]?.time||NOHOUD_PUSH_DEFAULTS[key].time
-        };
-      }
-      return result;
-    }
-
-    function applyNohoudPushPreferences(){
-      let saved={};
-      try{saved=JSON.parse(localStorage.getItem(NOHOUD_PUSH_PREFS_KEY)||'{}')}catch(_){}
-      for(const [key,defaults] of Object.entries(NOHOUD_PUSH_DEFAULTS)){
-        const enabled=document.getElementById(`push-${key}-enabled`),time=document.getElementById(`push-${key}-time`);
-        if(enabled) enabled.checked=saved[key]?.enabled??defaults.enabled;
-        if(time) time.value=saved[key]?.time||defaults.time;
-      }
-    }
-
-    function openNohoudPushSettings(){
-      const modal = document.getElementById('nohoud-push-modal');
-      if (modal) {
-        modal.classList.remove('hidden');
-      }
-      if (window.lucide) {
-        lucide.createIcons();
-      }
-    }
-
-    function closeNohoudPushSettings(){
-      const modal = document.getElementById('nohoud-push-modal');
-      if (modal) {
-        modal.classList.add('hidden');
-      }
-    }
-
-    async function enableNohoudPush(){
-      try {
-        const granted = await nohoudRequestNotificationsPermission();
-        if(!granted){
-          nohoudPushStatus('لم يُمنح إذن الإشعارات؛ اسمح به من إعدادات الجهاز.',true);
-          return;
-        }
-
-        const prefs = nohoudPushPreferences();
-        localStorage.setItem(NOHOUD_PUSH_PREFS_KEY, JSON.stringify(prefs));
-
-        // جدولة المواعيد محلياً عبر نظام الجهاز ودعم جِمناي المحدث
-        if(window.NohoudNotificationManager) {
-          if(prefs.recovery.enabled && prefs.recovery.time) {
-            const [h, m] = prefs.recovery.time.split(':');
-            await window.NohoudNotificationManager.scheduleOrUpdateNotification(h, m, localStorage.getItem('nohoud_ai_api_key'));
-          }
-          if(prefs.adhkar.enabled && prefs.adhkar.time) {
-            const [h, m] = prefs.adhkar.time.split(':');
-            await window.NohoudNotificationManager.scheduleOrUpdateNotification(h, m, localStorage.getItem('nohoud_ai_api_key'));
-          }
-        }
-
-        nohoudPushStatus('تم تفعيل إشعارات النظام بنجاح! ستعمل المواعيد محلياً حتى عند إغلاق التطبيق.');
-        showToast('الإشعارات مفعّلة', 'حُفظت التذكيرات وتعمل على هذا الجهاز.');
-      } catch(e) {
-        nohoudPushStatus(`تعذّر التفعيل: ${e.message}`, true);
-      }
-    }
-
-    
-
-       nohoudPushStatus('تم حفظ المواعيد وجدولة 28 إشعاراً بنجاح.');
-       showToast('حُفظت المواعيد', 'تمت جدولة التذكيرات الجديدة.');
-     } catch(e) {
-       nohoudPushStatus(`تعذّر حفظ المواعيد: ${e.message}`, true);
-     }
-   }
-
-        nohoudPushStatus('تم حفظ المواعيد وتحديثها بنجاح.');
-        showToast('حُفظت المواعيد', 'تمت جدولة التذكيرات الجديدة.');
-      } catch(e) {
-        nohoudPushStatus(`تعذّر حفظ المواعيد: ${e.message}`, true);
-      }
-    }
-
-    function disableNohoudPush(){
-      localStorage.removeItem(NOHOUD_PUSH_PREFS_KEY);
-      nohoudPushStatus('أُوقفت التذكيرات المحلية على هذا الجهاز.');
-    }
   </script>
 <style>
     * {
@@ -1001,46 +889,8 @@
     // 3. SURAH & QURAN API ENGINE
     // ==========================================
     const surahSelectEl = document.getElementById('surah-select');
-    function populateSurahDropdown() {
-      surahSelectEl.innerHTML = '';
-      SURAHS.forEach(s => {
-        const opt = document.createElement('option');
-        opt.value = s.id;
-        opt.innerText = `${s.id}. سورة ${s.name} (${s.verses} آية - ${s.type})`;
-        if (s.id === state.currentSurah) opt.selected = true;
-        surahSelectEl.appendChild(opt);
-      });
-    }
 
     let loadedAyahs = [];
-    async function fetchSurahAyahs(surahNum) {
-      const quranPage = document.getElementById('quran-page');
-      const loader = document.getElementById('quran-loading');
-      loader.classList.remove('hidden');
-      quranPage.innerHTML = '';
-
-      // Update badge
-      const surahData = SURAHS.find(s => s.id === parseInt(surahNum)) || SURAHS[0];
-      document.getElementById('surah-badge-info').innerText = `${surahData.verses} آيات • ${surahData.type}`;
-
-      try {
-        const response = await fetch(`https://api.alquran.cloud/v1/surah/${surahNum}`);
-        if (!response.ok) throw new Error("API Network issue");
-        const data = await response.json();
-        if (data && data.data && data.data.ayahs) {
-          loadedAyahs = data.data.ayahs;
-        } else {
-          throw new Error("Invalid format");
-        }
-      } catch (err) {
-        console.warn("Using offline fallback generator for Surah:", surahNum, err);
-        // Resilient Fallback Ayahs Generator so app never breaks
-        loadedAyahs = generateFallbackAyahs(surahNum, surahData);
-      } finally {
-        loader.classList.add('hidden');
-        renderAyahsList(surahData);
-      }
-    }
 
     function generateFallbackAyahs(surahNum, surahData) {
       const fallbackList = [];
@@ -1069,67 +919,8 @@
       return fallbackList;
     }
 
-    function renderAyahsList(surahData) {
-      const container = document.getElementById('quran-page');
-      container.innerHTML = '';
 
-      loadedAyahs.forEach((ayah) => {
-        const card = document.createElement('div');
-        const isCurrent = (state.currentSurah === surahData.id && state.currentAyahIndex === ayah.numberInSurah);
-        card.id = `ayah-card-${ayah.numberInSurah}`;
-        card.className = `ayah-card group p-3.5 rounded-xl bg-[#151f31] border ${isCurrent ? 'border-brand-500 active-ayah' : 'border-[#202d44]'} hover:border-brand-500/50 transition-all cursor-pointer relative`;
-        
-        card.onclick = () => selectAyah(surahData.id, ayah.numberInSurah, ayah.text);
 
-        card.innerHTML = `
-          <div class="flex items-center justify-between mb-2">
-            <div class="flex items-center gap-2">
-              <span class="w-6 h-6 rounded-full bg-brand-500/20 text-brand-400 text-xs font-bold flex items-center justify-center border border-brand-500/30">
-                ${ayah.numberInSurah}
-              </span>
-              <span class="text-[10px] text-slate-400">سورة ${surahData.name}</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <button onclick="event.stopPropagation(); playAyahAudio(${ayah.numberInSurah})" class="p-1.5 rounded-lg bg-[#1d2940] text-brand-400 hover:bg-brand-500 hover:text-white transition-all text-xs" title="استماع">
-                <i data-lucide="play" class="w-3.5 h-3.5"></i>
-              </button>
-              <button onclick="event.stopPropagation(); openTafsirModal(${surahData.id}, ${ayah.numberInSurah})" class="text-[10px] px-2 py-1 bg-[#1e2a42] text-slate-300 rounded-lg border border-[#2b3c5c] hover:text-white">
-                تفسير وتدبر
-              </button>
-            </div>
-          </div>
-          <p class="quran-font text-lg text-slate-100 text-right leading-loose">
-            ${ayah.text}
-          </p>
-        `;
-        container.appendChild(card);
-      });
-      lucide.createIcons();
-    }
-
-    function onSurahChange(val) {
-      state.currentSurah = parseInt(val);
-      state.currentAyahIndex = 1;
-      DB.set('currentSurah', state.currentSurah);
-      DB.set('currentAyahIndex', 1);
-      fetchSurahAyahs(state.currentSurah);
-      updatePlayerInfo();
-    }
-
-    function selectAyah(surahNum, ayahNum, text) {
-      state.currentSurah = surahNum;
-      state.currentAyahIndex = ayahNum;
-      state.currentAyahText = text || '';
-      DB.set('currentSurah', surahNum);
-      DB.set('currentAyahIndex', ayahNum);
-      DB.set('currentAyahText', state.currentAyahText);
-
-      document.querySelectorAll('.ayah-card').forEach(c => c.classList.remove('active-ayah'));
-      const activeEl = document.getElementById(`ayah-card-${surahId}-${ayahNum}`);
-      if (activeEl) activeEl.classList.add('active-ayah');
-
-      updatePlayerInfo();
-    }
 
     function updatePlayerInfo() {
       const s = SURAHS.find(x => x.id === state.currentSurah) || SURAHS[0];
@@ -1201,7 +992,7 @@
       } else {
         icon.setAttribute('data-lucide', 'play');
       }
-      lucide.createIcons();
+      nohoudRefreshIcons();
     }
 
     audioElement.ontimeupdate = () => {
@@ -1223,48 +1014,8 @@
     // ==========================================
     // 5. BOOKMARK ENGINE
     // ==========================================
-    function renderBookmarkUI() {
-      const bm = state.bookmark;
-      const textEl = document.getElementById('bookmark-text');
-      if (bm && bm.surahId) {
-        const s = SURAHS.find(x => x.id === bm.surahId) || SURAHS[0];
-        textEl.innerText = `سورة ${s.name} • الآية ${bm.ayahNum} (تم الحفظ: ${bm.date || 'اليوم'})`;
-      } else {
-        textEl.innerText = 'لم يتم تحديد فاصلة بعد (اضغط على أي آية لحفظها)';
-      }
-    }
 
-    function saveBookmarkFromCurrentAyah() {
-      const s = SURAHS.find(x => x.id === state.currentSurah) || SURAHS[0];
-      const now = new Date().toLocaleDateString('ar-EG');
-      state.bookmark = {
-        surahId: state.currentSurah,
-        surahName: s.name,
-        ayahNum: state.currentAyahIndex,
-        date: now
-      };
-      DB.set('bookmark', state.bookmark);
-      renderBookmarkUI();
-      closeTafsirModal();
-      showToast('تم حفظ الفاصلة 🔖', `تم حفظ موضع قراءتك عند سورة ${s.name} الآية ${state.currentAyahIndex}`);
-    }
 
-    function resumeBookmark() {
-      if (state.bookmark && state.bookmark.surahId) {
-        state.currentSurah = state.bookmark.surahId;
-        state.currentAyahIndex = state.bookmark.ayahNum;
-        surahSelectEl.value = state.currentSurah;
-        fetchSurahAyahs(state.currentSurah).then(() => {
-          setTimeout(() => {
-            const card = document.getElementById(`ayah-card-${state.currentAyahIndex}`);
-            if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }, 300);
-        });
-        showToast('متابعة الورد', `تم نقلك إلى سورة ${state.bookmark.surahName} آية ${state.currentAyahIndex}`);
-      } else {
-        showToast('لا توجد فاصلة', 'اضغط على تفاصيل أي آية لحفظها كفاصلة قراءة.');
-      }
-    }
 
     // ==========================================
     // 6. TAFSIR & EXPLANATION MODAL
@@ -1274,22 +1025,6 @@
       18: "سورة الكهف عصمة من فتن الدنيا والدجال، وتؤكد على الصبر مع الصالحين، وعدم الانجرار وراء زينة الحياة الزائلة والغرور بالأموال والأولاد."
     };
 
-    function openTafsirModal(surahId, ayahNum) {
-      state.currentSurah = surahId;
-      state.currentAyahIndex = ayahNum;
-      updatePlayerInfo();
-      const s = SURAHS.find(x => x.id === surahId) || SURAHS[0];
-      document.getElementById('tafsir-title').innerText = `تفسير سورة ${s.name} • الآية (${ayahNum})`;
-      
-      const card = document.getElementById(`ayah-card-${surahId}-${ayahNum}`);
-      const text = card ? card.querySelector('.quran-font').innerText : 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ';
-      document.getElementById('tafsir-ayah-text').innerText = text;
-
-      const defaultTafsir = TAFSIR_SAMPLES[surahId] || `تفسير الآية ${ayahNum} من سورة ${s.name}: دعوة لليقظة، الإخلاص لله في العمل، والابتعاد عن الهوى والاستعصام بالحق.`;
-      document.getElementById('tafsir-body-text').innerText = defaultTafsir;
-
-      document.getElementById('tafsir-modal').classList.remove('hidden');
-    }
 
     function closeTafsirModal() {
       document.getElementById('tafsir-modal').classList.add('hidden');
@@ -1298,38 +1033,7 @@
     // ==========================================
     // 7. PRAYER TRACKER (STARTS FROM 0/CLEAN)
     // ==========================================
-    function renderPrayersUI() {
-      const keys = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
-      let completedCount = 0;
 
-      keys.forEach(k => {
-        const btn = document.getElementById(`prayer-btn-${k}`);
-        const isDone = state.prayers[k];
-        if (isDone) completedCount++;
-
-        if (btn) {
-          if (isDone) {
-            btn.className = "p-2.5 rounded-xl bg-brand-500 text-white text-[11px] font-bold border border-brand-400 shadow-sm flex flex-col items-center gap-1 transition-all";
-            btn.querySelector('i,svg').setAttribute('data-lucide', 'check');
-          } else {
-            btn.className = "p-2.5 rounded-xl bg-[#182236] text-slate-400 text-[11px] font-semibold border border-[#23324d] flex flex-col items-center gap-1 transition-all";
-            btn.querySelector('i,svg').setAttribute('data-lucide', 'circle');
-          }
-        }
-      });
-
-      document.getElementById('prayer-ratio').innerText = `${completedCount} / 5 صلوات`;
-      lucide.createIcons();
-    }
-
-    function togglePrayer(prayerKey) {
-      state.prayers[prayerKey] = !state.prayers[prayerKey];
-      DB.set('prayers', state.prayers);
-      renderPrayersUI();
-      if (state.prayers[prayerKey]) {
-        showToast('تقبل الله 🕌', `تم تسجيل صلاة اليوم بنجاح.`);
-      }
-    }
 
     // ==========================================
     // 8. TASBEEH COUNTER (STARTS FROM 0)
@@ -1349,16 +1053,6 @@
       document.getElementById('tasbeeh-target-text').innerText = `الهدف: ${currentDhikr.target} مرة (مكتمل: ${state.tasbeeh})`;
     }
 
-    function incrementTasbeeh() {
-      const currentDhikr = DHIKR_LIST[state.dhikrIdx] || DHIKR_LIST[0];
-      state.tasbeeh++;
-      if (state.tasbeeh >= currentDhikr.target) {
-        showToast('أتممت الورد 🎉', `أحسنت! أتممت ${currentDhikr.target} تسبيحة.`);
-      }
-      DB.set('tasbeeh', state.tasbeeh);
-      renderTasbeehUI();
-      if (navigator.vibrate) navigator.vibrate(25);
-    }
 
     function resetTasbeeh() {
       state.tasbeeh = 0;
@@ -1439,34 +1133,6 @@
 
     let panicTimer = null;
     let panicSeconds = 60;
-    function startPanicProtocol() {
-      const btn = document.getElementById('panic-btn');
-      const txt = document.getElementById('panic-btn-text');
-
-      if (panicTimer) {
-        clearInterval(panicTimer);
-        panicTimer = null;
-        panicSeconds = 60;
-        txt.innerText = 'زر النجدة والطوارئ (ابدأ بروتوكول 60ث)';
-        btn.className = "w-full py-3.5 rounded-2xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-extrabold text-sm shadow-xl shadow-red-600/30 active:scale-98 transition-all flex items-center justify-center gap-2";
-        return;
-      }
-
-      btn.className = "w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-700 text-white font-extrabold text-sm shadow-xl shadow-orange-600/30 flex items-center justify-center gap-2 animate-pulse";
-      showToast('بروتوكول الطوارئ مُفعّل 🚨', 'اترك الشاشة فوراً! قف وتوضأ بماء بارد وتنفس بعمق.');
-
-      panicTimer = setInterval(() => {
-        panicSeconds--;
-        txt.innerText = `اثبت يا بطل! متبقي: ${panicSeconds} ث (تنفس بعمق)`;
-        if (panicSeconds <= 0) {
-          clearInterval(panicTimer);
-          panicTimer = null;
-          panicSeconds = 60;
-          txt.innerText = 'انتصرت في جولة النجدة! أحسنت 🛡️';
-          btn.className = "w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-extrabold text-sm shadow-xl";
-        }
-      }, 1000);
-    }
 
     function togglePref(prefKey, val) {
       state.prefs[prefKey] = val;
@@ -1518,7 +1184,7 @@
         `;
         listEl.appendChild(item);
       });
-      lucide.createIcons();
+      nohoudRefreshIcons();
     }
 
     function addNewSubject() {
@@ -1558,7 +1224,7 @@
     function renderWakeUpUI() {
       const btn = document.getElementById('wake-up-btn');
       const status = document.getElementById('early-wake-status');
-      const isLoggedToday = state.wakeUpLoggedDate === todayStr;
+      const isLoggedToday = state.wakeUpLoggedDate === new Date().toDateString();
 
       if (isLoggedToday) {
         status.innerText = `تم تسجيل النهوض المبكر اليوم! (سلسلة: ${state.wakeUpStreak} يوم)`;
@@ -1571,15 +1237,6 @@
       }
     }
 
-    function logWakeUpToday() {
-      if (state.wakeUpLoggedDate === todayStr) return;
-      state.wakeUpLoggedDate = todayStr;
-      state.wakeUpStreak = (state.wakeUpStreak || 0) + 1;
-      DB.set('wakeUpLoggedDate', state.wakeUpLoggedDate);
-      DB.set('wakeUpStreak', state.wakeUpStreak);
-      renderWakeUpUI();
-      showToast('نهوض فوري ☀️', 'أحسنت! انطلاقة مباركة في بكور اليوم.');
-    }
 
     function renderHabitsUI() {
       const keys = ['gym', 'reading', 'water', 'sleep'];
@@ -1602,14 +1259,9 @@
       });
       const pct = Math.round((done / 4) * 100);
       document.getElementById('habit-progress-badge').innerText = `${pct}% إنجاز اليوم`;
-      lucide.createIcons();
+      nohoudRefreshIcons();
     }
 
-    function toggleHabitItem(k) {
-      state.habits[k] = !state.habits[k];
-      DB.set('habits', state.habits);
-      renderHabitsUI();
-    }
 
     // ==========================================
     // 11. PRODUCTIVITY HUB (DYNAMIC TASKS & POMO)
@@ -1643,7 +1295,7 @@
         `;
         listEl.appendChild(item);
       });
-      lucide.createIcons();
+      nohoudRefreshIcons();
     }
 
     function addTask() {
@@ -1657,13 +1309,6 @@
       showToast('مهمة جديدة', `تمت إضافة المهمة إلى جدول أعمالك.`);
     }
 
-    function toggleTask(idx) {
-      if (state.tasks[idx]) {
-        state.tasks[idx].done = !state.tasks[idx].done;
-        DB.set('tasks', state.tasks);
-        renderTasksUI();
-      }
-    }
 
     function deleteTask(idx) {
       state.tasks.splice(idx, 1);
@@ -1693,7 +1338,7 @@
         bBtn.className = "px-3.5 py-1 rounded-full bg-brand-500 text-white text-[11px] font-bold transition-all";
         fBtn.className = "px-3.5 py-1 rounded-full bg-[#182236] text-slate-400 text-[11px] hover:text-white transition-all";
       }
-      lucide.createIcons();
+      nohoudRefreshIcons();
     }
 
     function togglePomodoro() {
@@ -1725,7 +1370,7 @@
           }
         }, 1000);
       }
-      lucide.createIcons();
+      nohoudRefreshIcons();
     }
 
     function resetPomodoro() {
@@ -1742,59 +1387,7 @@
     // ==========================================
     // 12. REAL AI CHAT WITH PERSISTENT HISTORY
     // ==========================================
-    function renderChatUI() {
-      const box = document.getElementById('ai-chat-box');
-      box.innerHTML = '';
 
-      if (state.chatHistory.length === 0) {
-        box.innerHTML = `
-          <div class="text-center py-4 text-slate-400 text-[11px]">
-            مرحباً بك. اضغط زر المفتاح واختر Google Gemini ثم أدخل مفتاحاً جديداً على هذا الجهاز فقط؛ سجل المحادثة محفوظ محلياً.
-          </div>
-        `;
-        return;
-      }
-
-      state.chatHistory.forEach(msg => {
-        const el = document.createElement('div');
-        if (msg.role === 'user') {
-          el.className = "flex justify-end";
-          el.innerHTML = `
-            <div class="bg-brand-500/20 text-brand-200 border border-brand-500/30 rounded-2xl rounded-br-sm px-3 py-2 text-xs max-w-[85%] text-right leading-relaxed">
-              ${msg.text}
-            </div>
-          `;
-        } else {
-          el.className = "flex justify-start";
-          el.innerHTML = `
-            <div class="bg-[#182337] text-slate-200 border border-[#273752] rounded-2xl rounded-bl-sm px-3 py-2 text-xs max-w-[88%] text-right leading-relaxed">
-              ${msg.text}
-            </div>
-          `;
-        }
-        box.appendChild(el);
-      });
-
-      box.scrollTop = box.scrollHeight;
-    }
-
-    function sendChatMessage() {
-      const input = document.getElementById('ai-general-input');
-      const val = input.value.trim();
-      if (!val) return;
-
-      state.chatHistory.push({ role: 'user', text: val, time: new Date().toLocaleTimeString('ar-EG') });
-      DB.set('chatHistory', state.chatHistory);
-      input.value = '';
-      renderChatUI();
-
-      setTimeout(() => {
-        const reply = generateAiReply(val);
-        state.chatHistory.push({ role: 'ai', text: reply, time: new Date().toLocaleTimeString('ar-EG') });
-        DB.set('chatHistory', state.chatHistory);
-        renderChatUI();
-      }, 500);
-    }
 
     function generateAiReply(query) {
       const q = query.toLowerCase();
@@ -1924,7 +1517,7 @@
     }
 
     window.addEventListener('DOMContentLoaded', () => {
-      lucide.createIcons();
+      nohoudRefreshIcons();
       populateSurahDropdown();
       renderBookmarkUI();
       renderPrayersUI();
@@ -2144,11 +1737,11 @@
     function recordPageOpened(page){const d=dayStats();if(!d.quranPages.includes(Number(page)))d.quranPages.push(Number(page));saveDailyStats();if(document.getElementById('section-stats')&&!document.getElementById('section-stats').classList.contains('hidden'))renderStats()}
     function recordAyahRead(surah,ayah){const d=dayStats();const key=`${surah}:${ayah}`;if(!d.quranAyahs.includes(key))d.quranAyahs.push(key);saveDailyStats()}
     function ensureCurrentDate(){if(state.prayersDate===new Date().toDateString())return;const oldKey=dateKey(new Date(state.prayersDate));const old=dayStats(oldKey);old.prayers={...state.prayers};old.habits={...state.habits};saveDailyStats();state.prayersDate=new Date().toDateString();state.prayers={fajr:false,dhuhr:false,asr:false,maghrib:false,isha:false};state.habits={gym:false,reading:false,water:false,sleep:false};state.tasbeeh=0;DB.set('tasbeeh',0);DB.set('prayersDate',state.prayersDate);DB.set('prayers',state.prayers);DB.set('habits',state.habits);renderPrayersUI();renderHabitsUI();renderTasbeehUI();renderStats()}
-    function renderPrayersUI(){ensureCurrentDate();const d=dayStats();d.prayers={...state.prayers};let count=0;PRAYER_KEYS.forEach(k=>{const btn=document.getElementById(`prayer-btn-${k}`);const icon=btn?.querySelector('i,svg');if(state.prayers[k])count++;if(btn){btn.className=state.prayers[k]?'p-2.5 rounded-xl bg-brand-500 text-white text-[11px] font-bold border border-brand-400 shadow-sm flex flex-col items-center gap-1 transition-all':'p-2.5 rounded-xl bg-[#182236] text-slate-400 text-[11px] font-semibold border border-[#23324d] flex flex-col items-center gap-1 transition-all';if(icon)icon.setAttribute('data-lucide',state.prayers[k]?'check':'circle')}});const ratio=document.getElementById('prayer-ratio');if(ratio)ratio.textContent=`${count} / 5 صلوات`;saveDailyStats();if(window.lucide)lucide.createIcons()}
+    function renderPrayersUI(){ensureCurrentDate();const d=dayStats();d.prayers={...state.prayers};let count=0;PRAYER_KEYS.forEach(k=>{const btn=document.getElementById(`prayer-btn-${k}`);const icon=btn?.querySelector('i,svg');if(state.prayers[k])count++;if(btn){btn.className=state.prayers[k]?'p-2.5 rounded-xl bg-brand-500 text-white text-[11px] font-bold border border-brand-400 shadow-sm flex flex-col items-center gap-1 transition-all':'p-2.5 rounded-xl bg-[#182236] text-slate-400 text-[11px] font-semibold border border-[#23324d] flex flex-col items-center gap-1 transition-all';if(icon)icon.setAttribute('data-lucide',state.prayers[k]?'check':'circle')}});const ratio=document.getElementById('prayer-ratio');if(ratio)ratio.textContent=`${count} / 5 صلوات`;saveDailyStats();if(window.lucide)nohoudRefreshIcons()}
     function togglePrayer(key){ensureCurrentDate();if(!PRAYER_KEYS.includes(key))return;state.prayers[key]=!state.prayers[key];DB.set('prayers',state.prayers);const d=dayStats();d.prayers={...state.prayers};saveDailyStats();renderPrayersUI();renderStats();if(state.prayers[key]){if(typeof nohoudRecordPrayerDone==='function')nohoudRecordPrayerDone(key);showToast('تقبل الله',`تم تسجيل ${PRAYER_LABELS[key]} لهذا اليوم.`)}}
     function incrementTasbeeh(){state.tasbeeh++;dayStats().tasbeeh++;DB.set('tasbeeh',state.tasbeeh);saveDailyStats();renderTasbeehUI();renderStats();if(navigator.vibrate)navigator.vibrate(20);const dh=DHIKR_LIST[state.dhikrIdx]||DHIKR_LIST[0];if(state.tasbeeh===dh.target)showToast('أتممت الورد','أحسنت، أنجزت العدد المستهدف.')}
     function toggleHabitItem(k){ensureCurrentDate();if(!(k in state.habits))return;state.habits[k]=!state.habits[k];dayStats().habits={...state.habits};DB.set('habits',state.habits);saveDailyStats();renderHabitsUI();renderStats()}
-    function logWakeUpToday(){ensureCurrentDate();if(state.wakeUpLoggedDate===todayStr)return;state.wakeUpLoggedDate=todayStr;state.wakeUpStreak=(state.wakeUpStreak||0)+1;DB.set('wakeUpLoggedDate',state.wakeUpLoggedDate);DB.set('wakeUpStreak',state.wakeUpStreak);dayStats().wakeUps=1;saveDailyStats();renderWakeUpUI();renderStats();showToast('نهوض فوري','سُجّل نهوضك لهذا اليوم.')}
+    function logWakeUpToday(){ensureCurrentDate();const todayNow=new Date().toDateString();if(state.wakeUpLoggedDate===todayNow)return;state.wakeUpLoggedDate=todayNow;state.wakeUpStreak=(state.wakeUpStreak||0)+1;DB.set('wakeUpLoggedDate',state.wakeUpLoggedDate);DB.set('wakeUpStreak',state.wakeUpStreak);dayStats().wakeUps=1;saveDailyStats();renderWakeUpUI();renderStats();showToast('نهوض فوري','سُجّل نهوضك لهذا اليوم.')}
     function toggleTask(idx){const t=state.tasks[idx];if(!t)return;t.done=!t.done;if(t.done)dayStats().tasksCompleted++;DB.set('tasks',state.tasks);saveDailyStats();renderTasksUI();renderStats()}
     function selectStatsDate(value){const input=document.getElementById('stats-date');if(input)input.value=value||todayKey();renderStats(value||todayKey())}
     function dayHeading(key){const d=new Date(`${key}T12:00:00`);return new Intl.DateTimeFormat('ar',{weekday:'long',day:'numeric',month:'long',year:'numeric',calendar:'gregory'}).format(d)}
@@ -2169,7 +1762,7 @@
     window.addEventListener('DOMContentLoaded',()=>{const d=dayStats();if(!dailyStatsData[todayKey()]||!dailyStatsData[todayKey()].prayers) d.prayers={...state.prayers};if(!dailyStatsData[todayKey()]?.habits) d.habits={...state.habits};saveDailyStats();renderStats();setInterval(ensureCurrentDate,60000)});
   </script>
 
-<div id="nohoud-push-modal" class="hidden fixed inset-0 z-[100] bg-black/75 backdrop-blur-sm p-4 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="nohoud-push-title" onclick="if(event.target===this)closeNohoudPushSettings()">
+<div id="nohoud-push-modal" class="hidden fixed inset-0 z-[100] bg-black/75 backdrop-blur-sm p-4 items-center justify-center" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="nohoud-push-title" onclick="if(event.target===this)closeNohoudPushSettings()">
  <div class="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl border border-[#2b3a52] bg-[#0f1724] p-5 shadow-2xl text-right" dir="rtl">
   <div class="flex items-start justify-between gap-3 mb-4"><div><h2 id="nohoud-push-title" class="font-bold text-white">إعداد تذكيرات نُهوض</h2><p class="text-[11px] leading-relaxed text-slate-400 mt-1">اختر ما تريد وموعده. تجدول التنبيهات محلياً على نظام الجهاز.</p></div><button type="button" onclick="closeNohoudPushSettings()" class="text-slate-400 p-1" aria-label="إغلاق"><i data-lucide="x" class="w-5 h-5"></i></button></div>
   <div class="space-y-3">
@@ -2244,6 +1837,515 @@ function incrementAdhkar(id){const item=nohoudGetActiveAdhkarItems().find(x=>x.i
 function resetAdhkarItem(id){const progress=nohoudGetAdhkarProgress(),key=nohoudAdhkarSection==='prayer'?nohoudPrayerCounterKey(id):id;progress.counters[key]=0;nohoudSaveAdhkarProgress(progress);renderAdhkarSection()}
 function resetPostPrayerAdhkar(){const progress=nohoudGetAdhkarProgress();for(const item of NOHOUD_ADHKAR.prayer.items)progress.counters[nohoudPrayerCounterKey(item.id)]=0;nohoudSaveAdhkarProgress(progress);renderAdhkarSection();showToast('عدادات الصلاة صُفّرت',`أصبحت جاهزة لصلاة ${NOHOUD_PRAYER_NAMES[nohoudSelectedPrayer]}.`)}
 window.addEventListener('DOMContentLoaded',renderAdhkarSection);
+</script>
+
+
+<script id="nohoud-notifications">
+// ============================================================
+// نُهوض | إعدادات التذكيرات (نافذة nohoud-push-modal) + مواقيت الصلاة
+// كتلة واحدة مستقلة: كل دالة معرّفة مرة واحدة فقط، وتُعرَض على window
+// لتعمل مع معالجات onclick في الواجهة.
+// ============================================================
+(function () {
+  'use strict';
+
+  // ---------- ثوابت ----------
+  const PUSH_PREFS_KEY = 'nohoud_local_notification_preferences_v1';
+  const PUSH_DEFAULTS = {
+    recovery: { enabled: true, time: '12:00' },
+    wird:     { enabled: true, time: '08:00' },
+    adhkar:   { enabled: true, time: '17:00' },
+    hourly:   { enabled: false }
+  };
+  const LAST_SENT_KEY = 'nohoud_local_notification_last_sent_v1';
+  const PRAYER_NAMES_AR = { fajr: 'الفجر', dhuhr: 'الظهر', asr: 'العصر', maghrib: 'المغرب', isha: 'العشاء' };
+  const PRAYER_ORDER = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
+  const REMINDER_TITLES = {
+    recovery: 'تذكير التعافي', wird: 'وردك اليومي', adhkar: 'وقت الأذكار',
+    adhan: 'حان وقت الصلاة', iqama: 'اقتربت الإقامة', followup: 'تذكير بالصلاة'
+  };
+  const TICK_MS = 30000;
+  const CATCH_UP_MINUTES = 10; // أقصى تأخير مقبول لإطلاق تذكير فاتَ موعده بسبب تجميد الصفحة
+
+  let tickTimer = null;
+  let lastFocusedBeforeModal = null;
+
+  // ---------- أدوات صغيرة ----------
+  const $ = (id) => document.getElementById(id);
+  const readJSON = (key, fallback) => {
+    try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch (_) { return fallback; }
+  };
+  const writeJSON = (key, value) => {
+    try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch (_) { return false; }
+  };
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const dayKey = (d = new Date()) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const minutesOf = (hhmm) => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || ''));
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+  const nowMinutes = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+  const safeToast = (title, body) => { try { if (typeof showToast === 'function') showToast(title, body); } catch (_) {} };
+
+  // ---------- المنصة الأصلية (Capacitor) ----------
+  function isNativeApp() {
+    return !!(window.NohoudCapacitor?.isNativePlatform?.() && window.NohoudLocalNotifications);
+  }
+
+  async function requestNotificationsPermission() {
+    if (isNativeApp()) {
+      const plugin = window.NohoudLocalNotifications;
+      let permission = await plugin.checkPermissions();
+      if (permission.display !== 'granted') permission = await plugin.requestPermissions();
+      return permission.display === 'granted';
+    }
+    if (!('Notification' in window) || typeof Notification.requestPermission !== 'function') return false;
+    let permission = Notification.permission;
+    if (permission === 'default') permission = await Notification.requestPermission();
+    return permission === 'granted';
+  }
+
+  // ---------- تفضيلات التذكيرات ----------
+  function pushPreferences() {
+    const saved = readJSON(PUSH_PREFS_KEY, {});
+    const result = {};
+    for (const key of Object.keys(PUSH_DEFAULTS)) {
+      const def = PUSH_DEFAULTS[key];
+      const enabledEl = $(`push-${key}-enabled`);
+      const timeEl = $(`push-${key}-time`);
+      result[key] = {
+        enabled: enabledEl ? enabledEl.checked : (saved[key]?.enabled ?? def.enabled),
+        time: (timeEl && timeEl.value) || saved[key]?.time || def.time
+      };
+    }
+    return result;
+  }
+
+  function applyNohoudPushPreferences() {
+    const saved = readJSON(PUSH_PREFS_KEY, {});
+    for (const [key, def] of Object.entries(PUSH_DEFAULTS)) {
+      const enabledEl = $(`push-${key}-enabled`);
+      const timeEl = $(`push-${key}-time`);
+      if (enabledEl) enabledEl.checked = saved[key]?.enabled ?? def.enabled;
+      if (timeEl) timeEl.value = saved[key]?.time || def.time;
+    }
+  }
+
+  function nohoudPushStatus(message, isError) {
+    const el = $('nohoud-push-status');
+    if (!el) return;
+    el.textContent = message;
+    el.classList.remove('text-slate-300', 'text-rose-300', 'text-emerald-300');
+    el.classList.add(isError ? 'text-rose-300' : 'text-emerald-300');
+  }
+
+  // ---------- فتح/إغلاق النافذة ----------
+  function openNohoudPushSettings() {
+    const modal = $('nohoud-push-modal');
+    if (!modal) return;
+    lastFocusedBeforeModal = document.activeElement;
+    try { applyNohoudPushPreferences(); } catch (e) { console.warn('applyNohoudPushPreferences', e); }
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    refreshIcons();
+    const firstButton = modal.querySelector('button');
+    if (firstButton) firstButton.focus({ preventScroll: true });
+  }
+
+  function closeNohoudPushSettings() {
+    const modal = $('nohoud-push-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    if (lastFocusedBeforeModal && typeof lastFocusedBeforeModal.focus === 'function') {
+      try { lastFocusedBeforeModal.focus({ preventScroll: true }); } catch (_) {}
+    }
+    lastFocusedBeforeModal = null;
+  }
+
+  function refreshIcons() {
+    try { if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons(); } catch (_) {}
+  }
+
+  // ---------- جدولة التذكيرات اليومية ----------
+  async function scheduleNativeReminders(prefs) {
+    const manager = window.NohoudNotificationManager;
+    if (!manager || typeof manager.scheduleOrUpdateNotification !== 'function') return 0;
+    const apiKey = localStorage.getItem('nohoud_ai_api_key');
+    let count = 0;
+    for (const key of ['recovery', 'wird', 'adhkar']) {
+      const p = prefs[key];
+      if (!p || !p.enabled || !p.time) continue;
+      const [h, m] = p.time.split(':');
+      await manager.scheduleOrUpdateNotification(h, m, apiKey, key);
+      count++;
+    }
+    return count;
+  }
+
+  async function applySchedule(prefs) {
+    if (isNativeApp()) {
+      stopTick();
+      return { mode: 'native', count: await scheduleNativeReminders(prefs) };
+    }
+    startTick();
+    return { mode: 'foreground', count: ['recovery', 'wird', 'adhkar'].filter((k) => prefs[k]?.enabled).length };
+  }
+
+  async function enableNohoudPush() {
+    try {
+      const granted = await requestNotificationsPermission();
+      if (!granted) {
+        nohoudPushStatus('لم يُمنح إذن الإشعارات؛ اسمح به من إعدادات المتصفح أو الجهاز.', true);
+        return false;
+      }
+      const prefs = pushPreferences();
+      writeJSON(PUSH_PREFS_KEY, prefs);
+      const result = await applySchedule(prefs);
+      if (result.mode === 'native') {
+        nohoudPushStatus('تم تفعيل الإشعارات وجدولتها على نظام الجهاز.', false);
+      } else {
+        nohoudPushStatus('تم التفعيل. تصل التذكيرات أثناء فتح التطبيق؛ وقد يمنعها النظام عند إغلاقه.', false);
+      }
+      safeToast('الإشعارات مفعّلة', 'حُفظت التذكيرات وتعمل على هذا الجهاز.');
+      return true;
+    } catch (e) {
+      nohoudPushStatus(`تعذّر التفعيل: ${e && e.message ? e.message : e}`, true);
+      return false;
+    }
+  }
+
+  async function saveNohoudPushPreferences() {
+    try {
+      const prefs = pushPreferences();
+      if (!writeJSON(PUSH_PREFS_KEY, prefs)) throw new Error('تعذّر الحفظ في مساحة التخزين');
+      const permitted = isNativeApp() ? true : ('Notification' in window && Notification.permission === 'granted');
+      if (!permitted) {
+        nohoudPushStatus('حُفظت المواعيد. اضغط «تفعيل الإشعارات» لمنح الإذن حتى تصل التذكيرات.', false);
+        return true;
+      }
+      await applySchedule(prefs);
+      nohoudPushStatus('تم حفظ المواعيد وتحديثها بنجاح.', false);
+      safeToast('حُفظت المواعيد', 'تمت جدولة التذكيرات الجديدة.');
+      return true;
+    } catch (e) {
+      nohoudPushStatus(`تعذّر حفظ المواعيد: ${e && e.message ? e.message : e}`, true);
+      return false;
+    }
+  }
+
+  function disableNohoudPush() {
+    try { localStorage.removeItem(PUSH_PREFS_KEY); } catch (_) {}
+    stopTick();
+    applyNohoudPushPreferences();
+    nohoudPushStatus('أُوقفت التذكيرات المحلية على هذا الجهاز.', false);
+  }
+
+  // ---------- إطلاق تذكير (إشعار نظام + توست + نغمة) ----------
+  async function reminderText(kind, seed) {
+    try {
+      if (typeof fetchGeminiReminder === 'function') {
+        const text = await fetchGeminiReminder({ kind, title: REMINDER_TITLES[kind] || '', seed });
+        if (text) return text;
+      }
+    } catch (_) {}
+    try { if (typeof nohoudReminderFallback === 'function') return nohoudReminderFallback(kind, seed); } catch (_) {}
+    return 'تذكير من نُهوض';
+  }
+
+  function softTone() {
+    const el = $('prayer-sound-enabled');
+    if (el && !el.checked) return;
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine'; osc.frequency.value = 528;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.06, ctx.currentTime + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.9);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(); osc.stop(ctx.currentTime + 1);
+      osc.onended = () => { try { ctx.close(); } catch (_) {} };
+    } catch (_) {}
+  }
+
+  async function systemNotify(title, body, tag) {
+    if (isNativeApp()) return; // على التطبيق الأصلي تتولى الإضافة ذلك
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const options = { body, tag, icon: './icons/icon-192.png', lang: 'ar', dir: 'rtl' };
+    try {
+      const reg = await navigator.serviceWorker?.getRegistration?.();
+      if (reg && typeof reg.showNotification === 'function') { await reg.showNotification(title, options); return; }
+    } catch (_) {}
+    try { new Notification(title, options); } catch (_) {}
+  }
+
+  async function fireReminder(kind, extraTitle, seed) {
+    const title = extraTitle || REMINDER_TITLES[kind] || 'نُهوض';
+    const body = await reminderText(kind, seed);
+    safeToast(title, body);
+    softTone();
+    await systemNotify(title, body, `nohoud-${kind}`);
+  }
+
+  // ---------- محرّك المؤقت (أثناء فتح التطبيق) ----------
+  function sentState() {
+    const s = readJSON(LAST_SENT_KEY, {});
+    return s && s.date === dayKey() ? s : { date: dayKey(), keys: {} };
+  }
+  function markSent(key) {
+    const s = sentState();
+    s.keys[key] = Date.now();
+    writeJSON(LAST_SENT_KEY, s);
+  }
+  function wasSent(key) { return !!sentState().keys[key]; }
+
+  function isDue(targetMinutes) {
+    if (targetMinutes == null) return false;
+    const diff = nowMinutes() - targetMinutes;
+    return diff >= 0 && diff <= CATCH_UP_MINUTES;
+  }
+
+  function tick() {
+    // 1) التذكيرات اليومية (التعافي / الورد / الأذكار)
+    const prefs = readJSON(PUSH_PREFS_KEY, null);
+    if (prefs && 'Notification' in window && Notification.permission === 'granted') {
+      for (const kind of ['recovery', 'wird', 'adhkar']) {
+        const p = prefs[kind];
+        if (!p || !p.enabled) continue;
+        const sentKey = `daily:${kind}`;
+        if (!wasSent(sentKey) && isDue(minutesOf(p.time))) {
+          markSent(sentKey);
+          fireReminder(kind, null, `${kind}:${dayKey()}`);
+        }
+      }
+    }
+    // 2) تنبيهات الصلاة
+    tickPrayerAlerts();
+  }
+
+  function startTick() { if (!tickTimer) { tickTimer = setInterval(tick, TICK_MS); tick(); } }
+  function stopTick() { if (tickTimer) { clearInterval(tickTimer); tickTimer = null; } }
+
+  // ---------- مواقيت الصلاة ----------
+  const PRAYER_SETTINGS_DEFAULTS = { method: '3', alerts: false, sound: true, iqama: 10, followup: 20, lat: null, lng: null, perPrayerIqama: {} };
+
+  function prayerSettings() {
+    const saved = (typeof DB !== 'undefined' ? DB.get('prayerSettings', {}) : {}) || {};
+    return { ...PRAYER_SETTINGS_DEFAULTS, ...saved, perPrayerIqama: { ...(saved.perPrayerIqama || {}) } };
+  }
+  function savePrayerSettingsObject(s) { if (typeof DB !== 'undefined') DB.set('prayerSettings', s); }
+
+  function prayerStatus(message, isError) {
+    const el = $('prayer-times-status');
+    if (!el) return;
+    el.textContent = message;
+    el.classList.toggle('text-rose-300', !!isError);
+    el.classList.toggle('text-slate-400', !isError);
+  }
+
+  function saveNohoudPrayerSettings(alertToggleChanged) {
+    const s = prayerSettings();
+    const method = $('prayer-calc-method'); if (method) s.method = method.value;
+    const alerts = $('prayer-alerts-enabled'); if (alerts) s.alerts = alerts.checked;
+    const sound = $('prayer-sound-enabled'); if (sound) s.sound = sound.checked;
+    const iqama = $('prayer-iqama-minutes');
+    if (iqama) { const v = Math.min(120, Math.max(1, parseInt(iqama.value, 10) || 10)); s.iqama = v; iqama.value = v; }
+    const follow = $('prayer-followup-minutes');
+    if (follow) { const v = Math.min(180, Math.max(15, parseInt(follow.value, 10) || 20)); s.followup = v; follow.value = v; }
+    document.querySelectorAll('[data-prayer-iqama]').forEach((input) => {
+      const key = input.getAttribute('data-prayer-iqama');
+      const v = parseInt(input.value, 10);
+      // نخزّن القيمة كاستثناء فقط إذا اختلفت عن المهلة الافتراضية العامة
+      if (Number.isFinite(v) && v >= 1 && v <= 120 && v !== s.iqama) s.perPrayerIqama[key] = v; else delete s.perPrayerIqama[key];
+    });
+    savePrayerSettingsObject(s);
+    if (alertToggleChanged === true) {
+      prayerStatus(s.alerts ? 'تم تفعيل تنبيهات الصلاة؛ تصل أثناء فتح التطبيق.' : 'أُوقفت تنبيهات الصلاة.', false);
+      if (s.alerts) startTick();
+    }
+    return s;
+  }
+
+  function loadPrayerSettingsUI() {
+    const s = prayerSettings();
+    const set = (id, fn) => { const el = $(id); if (el) fn(el); };
+    set('prayer-calc-method', (el) => { el.value = s.method; });
+    set('prayer-alerts-enabled', (el) => { el.checked = !!s.alerts; });
+    set('prayer-sound-enabled', (el) => { el.checked = s.sound !== false; });
+    set('prayer-iqama-minutes', (el) => { el.value = s.iqama; });
+    set('prayer-followup-minutes', (el) => { el.value = s.followup; });
+    if (s.lat != null && s.lng != null) {
+      set('prayer-location-label', (el) => { el.textContent = `الموقع: ${Number(s.lat).toFixed(2)}، ${Number(s.lng).toFixed(2)}`; });
+    }
+  }
+
+  function requestNohoudPrayerLocation() {
+    if (!navigator.geolocation) { prayerStatus('المتصفح لا يدعم تحديد الموقع.', true); return; }
+    prayerStatus('جارٍ تحديد موقعك…', false);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const s = prayerSettings();
+        s.lat = pos.coords.latitude; s.lng = pos.coords.longitude;
+        savePrayerSettingsObject(s);
+        loadPrayerSettingsUI();
+        refreshNohoudPrayerTimes();
+      },
+      (err) => {
+        const msg = err && err.code === 1 ? 'لم يُسمح بالوصول إلى الموقع؛ فعّل الإذن ثم أعد المحاولة.' : 'تعذّر تحديد الموقع؛ تأكد من تفعيل GPS ثم أعد المحاولة.';
+        prayerStatus(msg, true);
+      },
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 600000 }
+    );
+  }
+
+  function cleanTime(value) { const m = /(\d{1,2}):(\d{2})/.exec(String(value || '')); return m ? `${pad2(m[1])}:${m[2]}` : null; }
+
+  async function refreshNohoudPrayerTimes() {
+    const s = saveNohoudPrayerSettings(false);
+    if (s.lat == null || s.lng == null) { prayerStatus('اضغط «تحديد موقعي» أولاً لحساب المواقيت.', true); return; }
+    const today = new Date();
+    const cache = DB.get('prayerTimesCache', null);
+    const sameDayCache = cache && cache.date === dayKey(today) && cache.method === s.method
+      && Math.abs(cache.lat - s.lat) < 0.01 && Math.abs(cache.lng - s.lng) < 0.01;
+    try {
+      prayerStatus('جارٍ تحديث المواقيت…', false);
+      const url = `https://api.aladhan.com/v1/timings/${pad2(today.getDate())}-${pad2(today.getMonth() + 1)}-${today.getFullYear()}`
+        + `?latitude=${encodeURIComponent(s.lat)}&longitude=${encodeURIComponent(s.lng)}&method=${encodeURIComponent(s.method)}`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      let json;
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        json = await res.json();
+      } finally { clearTimeout(timeout); }
+      const t = json && json.data && json.data.timings;
+      if (!t) throw new Error('استجابة غير مفهومة من الخدمة');
+      const times = { fajr: cleanTime(t.Fajr), dhuhr: cleanTime(t.Dhuhr), asr: cleanTime(t.Asr), maghrib: cleanTime(t.Maghrib), isha: cleanTime(t.Isha) };
+      if (PRAYER_ORDER.some((k) => !times[k])) throw new Error('مواقيت ناقصة في الاستجابة');
+      DB.set('prayerTimesCache', { date: dayKey(today), method: s.method, lat: s.lat, lng: s.lng, times });
+      renderPrayerTimes(times);
+      prayerStatus('المواقيت تقريبية بحسب طريقة الحساب المختارة؛ راجع تقويم مسجدك المحلي.', false);
+    } catch (e) {
+      if (sameDayCache) {
+        renderPrayerTimes(cache.times);
+        prayerStatus('تعذّر الاتصال؛ عُرضت آخر مواقيت محفوظة لليوم.', true);
+      } else {
+        prayerStatus(`تعذّر جلب المواقيت: ${e && e.message ? e.message : e}`, true);
+      }
+    }
+  }
+
+  function currentPrayerTimes() {
+    const cache = DB.get('prayerTimesCache', null);
+    return cache && cache.date === dayKey() ? cache.times : null;
+  }
+
+  function to12h(hhmm) {
+    const mins = minutesOf(hhmm); if (mins == null) return hhmm;
+    const h = Math.floor(mins / 60), m = mins % 60;
+    return `${h % 12 === 0 ? 12 : h % 12}:${pad2(m)} ${h >= 12 ? 'م' : 'ص'}`;
+  }
+
+  function renderPrayerTimes(times) {
+    const list = $('prayer-times-list');
+    if (!list) return;
+    const s = prayerSettings();
+    list.replaceChildren();
+    for (const key of PRAYER_ORDER) {
+      if (!times || !times[key]) continue;
+      const row = document.createElement('div');
+      row.className = 'flex items-center justify-between gap-2 rounded-lg bg-[#0c1421] px-3 py-2 text-[11px] text-slate-200';
+      const name = document.createElement('b'); name.textContent = PRAYER_NAMES_AR[key];
+      const time = document.createElement('span'); time.className = 'text-emerald-300 font-semibold'; time.textContent = to12h(times[key]);
+      const iqamaWrap = document.createElement('label'); iqamaWrap.className = 'flex items-center gap-1 text-[9px] text-slate-400';
+      iqamaWrap.append('الإقامة بعد');
+      const input = document.createElement('input');
+      input.type = 'number'; input.min = '1'; input.max = '120';
+      input.value = s.perPrayerIqama[key] || s.iqama;
+      input.setAttribute('data-prayer-iqama', key);
+      input.className = 'w-12 rounded border border-[#30415b] bg-[#0a111c] p-1 text-center text-[10px] text-white';
+      input.addEventListener('change', () => saveNohoudPrayerSettings(false));
+      iqamaWrap.append(input, 'د');
+      row.append(name, time, iqamaWrap);
+      list.append(row);
+    }
+  }
+
+  function tickPrayerAlerts() {
+    const s = prayerSettings();
+    if (!s.alerts || !('Notification' in window) || Notification.permission !== 'granted') return;
+    const times = currentPrayerTimes();
+    if (!times) return;
+    const prayersDone = (typeof state !== 'undefined' && state.prayers) ? state.prayers : {};
+    for (const key of PRAYER_ORDER) {
+      const adhan = minutesOf(times[key]);
+      if (adhan == null) continue;
+      const iqamaGap = s.perPrayerIqama[key] || s.iqama;
+      const slots = [
+        { id: `adhan:${key}`, at: adhan, kind: 'adhan' },
+        { id: `iqama:${key}`, at: adhan + Math.max(1, iqamaGap - 2), kind: 'iqama' },
+        { id: `followup:${key}`, at: adhan + s.followup, kind: 'followup', skipIfDone: true }
+      ];
+      for (const slot of slots) {
+        if (wasSent(slot.id) || !isDue(slot.at)) continue;
+        markSent(slot.id);
+        if (slot.skipIfDone && prayersDone[key]) continue;
+        fireReminder(slot.kind, `${REMINDER_TITLES[slot.kind]} • ${PRAYER_NAMES_AR[key]}`, `${slot.id}:${dayKey()}`);
+      }
+    }
+  }
+
+  // تُستدعى من togglePrayer عند تسجيل «صليت»: تمنع تذكير المتابعة لهذه الصلاة اليوم
+  function nohoudRecordPrayerDone(key) {
+    if (PRAYER_ORDER.includes(key)) markSent(`followup:${key}`);
+  }
+
+  // ---------- مفاتيح لوحة المفاتيح ----------
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const modal = $('nohoud-push-modal');
+    if (modal && !modal.classList.contains('hidden')) closeNohoudPushSettings();
+  });
+
+  // ---------- التهيئة ----------
+  function init() {
+    try { applyNohoudPushPreferences(); } catch (_) {}
+    try { loadPrayerSettingsUI(); } catch (_) {}
+    try { const times = currentPrayerTimes(); if (times) renderPrayerTimes(times); } catch (_) {}
+    const prefs = readJSON(PUSH_PREFS_KEY, null);
+    const s = prayerSettings();
+    if (!isNativeApp() && ((prefs && Object.values(prefs).some((p) => p && p.enabled)) || s.alerts)) startTick();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+
+  // ---------- عرض الدوال العامة ----------
+  // ملاحظة: إن عرّفت أي من هذه الدوال في /src/main.js فإن تعريفك الأصلي (الذي يُحمَّل لاحقاً) هو الذي يسود.
+  Object.assign(window, {
+    nohoudIsNativeApp: isNativeApp,
+    nohoudRequestNotificationsPermission: requestNotificationsPermission,
+    nohoudPushPreferences: pushPreferences,
+    nohoudPushStatus,
+    applyNohoudPushPreferences,
+    openNohoudPushSettings,
+    closeNohoudPushSettings,
+    enableNohoudPush,
+    saveNohoudPushPreferences,
+    disableNohoudPush,
+    saveNohoudPrayerSettings,
+    requestNohoudPrayerLocation,
+    refreshNohoudPrayerTimes,
+    nohoudRecordPrayerDone
+  });
+})();
 </script>
 
 </body></html>
