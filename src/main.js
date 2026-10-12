@@ -33,7 +33,6 @@ const calculationMethods = {
   '4': CalculationMethod.UmmAlQura,
   '5': CalculationMethod.Egyptian,
   '8': CalculationMethod.Dubai,
-  // رمز AlAdhan لفرنسا UOIF؛ أقرب preset عام مضمّن هنا هو MWL.
   '12': CalculationMethod.Other,
   '13': CalculationMethod.Turkey,
 };
@@ -74,80 +73,117 @@ window.NohoudPrayerCalculator = {
 };
 
 // ==========================================
-// نظام إدارة وتحديث الأذكار والإشعارات الذكية
+// نظام إدارة وتحديث الأذكار والإشعارات الذكية (جدولة 14 يوماً للخلفية)
 // ==========================================
 
-const fallbackDhikrList = [
-  "سبحان الله وبحمده، سبحان الله العظيم.",
-  "لا حول ولا قوة إلا بالله العلي العظيم.",
-  "استغفر الله العظيم واتوب اليه.",
-  "اللهم صل وسلم على نبينا محمد.",
-  "لا إله إلا أنت سبحانك إني كنت من الظالمين.",
-  "سبحان الله، والحمد لله، ولا إله إلا الله، والله أكبر.",
-  "رضيت بالله رباً، وبالإسلام ديناً، وبمحمد صلى الله عليه وسلم نبيناً."
-];
-
-function getRandomFallbackDhikr() {
-  const index = Math.floor(Math.random() * fallbackDhikrList.length);
-  return fallbackDhikrList[index];
-}
-
-async function fetchDynamicDhikrText(geminiApiKey) {
-  if (!geminiApiKey) return getRandomFallbackDhikr();
-  try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{ text: "أعطني ذكراً قصيراً ومؤثراً جداً (جملة واحدة فقط بدون أي مقدمات أو شرح)" }]
-        }]
-      })
-    });
-    
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    return text ? text.trim() : getRandomFallbackDhikr();
-  } catch (err) {
-    console.warn('تعذر الاتصال بـ Gemini، تم استخدام الذكر الاحتياطي:', err);
-    return getRandomFallbackDhikr();
-  }
-}
+const DYNAMIC_TEXTS = {
+  recovery: [
+    "الانتكاسة ليست نهاية الطريق، قم واغسل وجهك وابدأ من جديد بثقة.",
+    "درع الصابرين معك اليوم.. كل دقيقة صمود تبني حصنك المنيع.",
+    "تذكر لماذا بدأت.. الهدف الذي تسعى إليه يستحق التضحية.",
+    "أنت أقوى من أي رغبة مؤقتة. تنفس بعمق وواصل نُهوضك.",
+    "لا تستسلم لضعف اللحظة، المكافأة في النهاية أعظم بكثير.",
+    "التعافي رحلة، ويوم جديد من النقاء ينتظرك الآن.",
+    "استعن بالله ولا تعجز، خطوة صغيرة اليوم تكفيك.",
+    "قاوم الفكرة قبل أن تصبح فعلاً، غيّر مكانك واشغل نفسك فوراً.",
+    "لقد قطعت شوطاً جيداً، لا تهدم ما بنيته من أجل لذة زائلة.",
+    "الصبر مرّ في بدايته لكن عواقبه أحلى من العسل.",
+    "كل يوم نظيف هو انتصار عظيم، احتفل بنجاحك اليوم.",
+    "لا تفرط في مكتسباتك، تذكر شعور الانتصار بعد تجاوز الرغبة.",
+    "أنت لست وحدك، الله معك، استعذ به من نزغات الشياطين.",
+    "العادات الجيدة تبنى بالاستمرار، واصل طريقك بشجاعة."
+  ],
+  adhkar: [
+    "حان وقت أذكارك.. حصّن نفسك واجعلها درعاً ليومك.",
+    "لا تنسَ الأذكار، فهي طمأنينة للقلب وسكينة للروح.",
+    "سبّح بحمد ربك، خذ دقيقة من وقتك للذكر والدعاء.",
+    "أذكارك هي حرزك.. بادر بها الآن ولا تؤجلها.",
+    "«ألا بذكر الله تطمئن القلوب».. اجعل للذكر نصيباً من يومك.",
+    "دقيقة مع الأذكار تبعد عنك التوتر وتجلب البركة.",
+    "اذكر الله يذكرك، كن مع الله في رخائك.",
+    "الاستغفار يفتح الأقفال، استغفر الله العظيم وأتوب إليه.",
+    "الصلاة على النبي ﷺ تكفيك همك وتغفر ذنبك.",
+    "حصن نفسك بآية الكرسي والمعوذتين لتكون في حفظ الله.",
+    "يا حي يا قيوم برحمتك أستغيث، أصلح لي شأني كله.",
+    "اللهم بك أمسينا وبك أصبحنا.. دعاء يملأ قلبك بالرضا.",
+    "كلمتان خفيفتان على اللسان: سبحان الله وبحمده، سبحان الله العظيم.",
+    "لا حول ولا قوة إلا بالله، كنز من كنوز الجنة."
+  ]
+};
 
 window.NohoudNotificationManager = {
-  async scheduleOrUpdateNotification(hour, minute, geminiApiKey) {
-    // 1. جلب الذكر المتجدد فوراً عند ضبط الوقت
-    const messageText = await fetchDynamicDhikrText(geminiApiKey);
-
-    // 2. حساب وقت الإشعار القادم
-    const now = new Date();
-    let targetTime = new Date();
-    targetTime.setHours(Number(hour), Number(minute), 0, 0);
-
-    if (targetTime <= now) {
-      targetTime.setDate(targetTime.getDate() + 1);
-    }
-
+  // نستقبل الاستدعاء من index.html ونعتمد على الإعدادات المحفوظة لجدولة الجميع تلقائياً
+  async scheduleOrUpdateNotification() {
+    if (!Capacitor.isNativePlatform()) return;
+    
     try {
-      // 3. إلغاء أي إشعارات قديمة متراكمة تجنباً للتكرار
+      const NOHOUD_PUSH_PREFS_KEY = 'nohoud_local_notification_preferences_v1';
+      const savedPrefs = localStorage.getItem(NOHOUD_PUSH_PREFS_KEY);
+      let prefs = {};
+      if (savedPrefs) {
+        prefs = JSON.parse(savedPrefs);
+      } else {
+        prefs = {
+          recovery: { enabled: true, time: '12:00' },
+          adhkar: { enabled: true, time: '17:00' }
+        };
+      }
+
+      // 1. تنظيف جميع الإشعارات المجدولة مسبقاً لمنع التكرار نهائياً
       const pending = await LocalNotifications.getPending();
       if (pending.notifications.length > 0) {
         await LocalNotifications.cancel(pending);
       }
 
-      // 4. جدولة الإشعار مباشرة مع النظام بالنص الجديد والوقت المحدد
-      await LocalNotifications.schedule({
-        notifications: [{
-          title: "الأذكار",
-          body: messageText,
-          id: 1001, // معرف ثابت للإشعار لتحديثه بسهولة
-          schedule: { at: targetTime }
-        }]
-      });
+      const notificationsToSchedule = [];
+      const now = new Date();
 
-      console.log(`تم جدولة الإشعار بنجاح ليعمل في: ${targetTime.toLocaleString()} بالنص: "${messageText}"`);
+      // 2. دالة مساعدة لإنشاء 14 إشعار لنوع معين بتواريخ مستقبلية
+      const buildSchedules = (type, timeStr, baseId, title) => {
+        if (!timeStr) return;
+        const [hour, minute] = timeStr.split(':');
+        const textsArray = DYNAMIC_TEXTS[type];
+
+        for (let i = 0; i < 14; i++) {
+          const targetTime = new Date();
+          targetTime.setHours(Number(hour), Number(minute), 0, 0);
+          targetTime.setDate(targetTime.getDate() + i);
+
+          // إذا كان وقت اليوم قد انقضى، نضيف يوم بحيث يبدأ من الغد
+          if (i === 0 && targetTime <= now) {
+            targetTime.setDate(targetTime.getDate() + 1);
+          }
+
+          const textIndex = (targetTime.getDay() + i) % textsArray.length;
+          
+          notificationsToSchedule.push({
+            id: baseId + i,
+            title: title,
+            body: textsArray[textIndex],
+            schedule: { at: targetTime },
+            extra: { type: type }
+          });
+        }
+      };
+
+      // 3. بناء إشعارات التعافي (بمعرفات فريدة 1000-1013)
+      if (prefs.recovery && prefs.recovery.enabled) {
+        buildSchedules('recovery', prefs.recovery.time, 1000, "درع الصابرين 🛡️");
+      }
+
+      // 4. بناء إشعارات الأذكار (بمعرفات فريدة 2000-2013)
+      if (prefs.adhkar && prefs.adhkar.enabled) {
+        buildSchedules('adhkar', prefs.adhkar.time, 2000, "تذكير نُهوض 🌟");
+      }
+
+      // 5. جدولة الجميع دفعة واحدة مع نظام الجوال
+      if (notificationsToSchedule.length > 0) {
+        await LocalNotifications.schedule({ notifications: notificationsToSchedule });
+        console.log(`تمت جدولة ${notificationsToSchedule.length} إشعاراً بنجاح لتعمل في الخلفية.`);
+      }
+
     } catch (e) {
-      console.warn("فشل جدولة الإشعار المحلي:", e);
+      console.error("فشل جدولة الإشعارات المحلية:", e);
     }
   }
 };
