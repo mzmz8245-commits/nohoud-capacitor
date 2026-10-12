@@ -6,7 +6,11 @@ async function initWebOneSignal() {
   if (!webInitialized) {
     await new Promise((resolve) => {
       window.OneSignalDeferred.push(async (OneSignal) => {
-        await OneSignal.init({ appId: APP_ID, allowLocalhostAsSecureOrigin: true, notifyButton: { enable: false } });
+        await OneSignal.init({ 
+          appId: APP_ID, 
+          allowLocalhostAsSecureOrigin: true, 
+          notifyButton: { enable: false } 
+        });
         webInitialized = true;
         resolve();
       });
@@ -15,30 +19,19 @@ async function initWebOneSignal() {
   return window.OneSignal;
 }
 
-async function getNativeSubscriptionId() {
-  const native = window.NohoudOneSignalNative;
-  if (!native?.User?.pushSubscription?.getIdAsync) return '';
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const id = await native.User.pushSubscription.getIdAsync();
-    if (id) return id;
-    await new Promise((resolve) => setTimeout(resolve, 800));
-  }
-  return '';
-}
-
 export async function requestNohoudNativePushPermission() {
-  // محاولة الطلب عبر OneSignal Native إن وجد
-  const native = window.NohoudOneSignalNative;
-  if (native?.Notifications?.requestPermission) {
-    return native.Notifications.requestPermission(true);
+  try {
+    const oneSignal = await initWebOneSignal();
+    if (oneSignal && oneSignal.Slidedown) {
+      await oneSignal.Slidedown.promptPush();
+      return true;
+    } else if ('Notification' in window) {
+      const permission = await Notification.requestPermission();
+      return permission === 'granted';
+    }
+  } catch (e) {
+    console.log('Push permission error handled:', e);
   }
-  
-  // طريقة بديلة مباشرة للويب/الآيفون لتجاوز خطأ عدم الدعم
-  if ('Notification' in window) {
-    const permission = await Notification.requestPermission();
-    return permission === 'granted';
-  }
-  
   return false;
 }
 
@@ -46,15 +39,14 @@ export async function syncNohoudBackendSubscription({ location, enabled = true, 
   if (!location || !Number.isFinite(Number(location.latitude)) || !Number.isFinite(Number(location.longitude))) {
     return { ok: false, skipped: true, reason: 'location is required' };
   }
-  let subscriptionId = '';
-  const isNative = Boolean(window.NohoudCapacitor?.isNativePlatform?.() || window.NohoudOneSignalNative);
-  if (isNative) {
-    subscriptionId = await getNativeSubscriptionId();
-  } else {
-    const oneSignal = await initWebOneSignal();
-    subscriptionId = oneSignal?.User?.PushSubscription?.id || '';
+  
+  const oneSignal = await initWebOneSignal();
+  const subscriptionId = oneSignal?.User?.PushSubscription?.id || '';
+  
+  if (!subscriptionId) {
+    return { ok: false, skipped: true, reason: 'OneSignal subscription is not ready yet' };
   }
-  if (!subscriptionId) return { ok: false, skipped: true, reason: 'OneSignal subscription is not ready' };
+
   const response = await fetch('/api/subscribe', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -70,9 +62,10 @@ export async function syncNohoudBackendSubscription({ location, enabled = true, 
       hourly,
       hourlyIntervalMinutes,
       witrMode,
-      platform: isNative ? 'ios' : 'web',
+      platform: 'web',
     }),
   });
+  
   if (!response.ok) throw new Error('تعذر مزامنة إعدادات الإشعارات مع الخادم');
   return response.json();
 }
